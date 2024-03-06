@@ -10,6 +10,7 @@ use anyhow::{Error as E, Result};
 use candle::{DType, Device, IndexOp, Module, Tensor, D};
 use clap::Parser;
 use tokenizers::Tokenizer;
+use tracing::Level;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]

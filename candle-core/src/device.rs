@@ -9,6 +9,7 @@ pub enum DeviceLocation {
     Cpu,
     Cuda { gpu_id: usize },
     Metal { gpu_id: usize },
+    Wgpu { gpu_id: usize },
 }
 
 #[derive(Debug, Clone)]
@@ -16,6 +17,7 @@ pub enum Device {
     Cpu,
     Cuda(crate::CudaDevice),
     Metal(crate::MetalDevice),
+    Wgpu(crate::WgpuDevice),
 }
 
 pub trait NdArray {
@@ -134,11 +136,16 @@ impl Device {
         Ok(Self::Metal(crate::MetalDevice::new(ordinal)?))
     }
 
+    pub fn new_wgpu(ordinal: usize) -> Result<Self> {
+        Ok(Self::Wgpu(crate::WgpuDevice::new(ordinal)?))
+    }
+
     pub fn set_seed(&self, seed: u64) -> Result<()> {
         match self {
-            Self::Cpu => CpuDevice.set_seed(seed),
-            Self::Cuda(c) => c.set_seed(seed),
-            Self::Metal(m) => m.set_seed(seed),
+            Device::Cpu => CpuDevice.set_seed(seed),
+            Device::Cuda(c) => c.set_seed(seed),
+            Device::Metal(m) => m.set_seed(seed),
+            Device::Wgpu(w) => todo!(),
         }
     }
 
@@ -153,9 +160,10 @@ impl Device {
 
     pub fn location(&self) -> DeviceLocation {
         match self {
-            Self::Cpu => DeviceLocation::Cpu,
-            Self::Cuda(device) => device.location(),
+            Device::Cpu => DeviceLocation::Cpu,
+            Device::Cuda(device) => device.location(),
             Device::Metal(device) => device.location(),
+            Device::Wgpu(device) => todo!(),
         }
     }
 
@@ -205,6 +213,7 @@ impl Device {
                 let storage = device.rand_uniform(shape, dtype, lo, up)?;
                 Ok(Storage::Metal(storage))
             }
+            Device::Wgpu(device) => todo!(),
         }
     }
 
@@ -243,6 +252,7 @@ impl Device {
                 let storage = device.rand_normal(shape, dtype, mean, std)?;
                 Ok(Storage::Metal(storage))
             }
+            Device::Wgpu(device) => todo!(),
         }
     }
 
@@ -269,6 +279,7 @@ impl Device {
                 let storage = device.ones_impl(shape, dtype)?;
                 Ok(Storage::Metal(storage))
             }
+            Device::Wgpu(_device) => todo!(),
         }
     }
 
@@ -286,6 +297,7 @@ impl Device {
                 let storage = device.zeros_impl(shape, dtype)?;
                 Ok(Storage::Metal(storage))
             }
+            Device::Wgpu(_device) => todo!(),
         }
     }
 
@@ -302,6 +314,7 @@ impl Device {
                 let storage = device.storage_from_cpu_storage(&storage)?;
                 Ok(Storage::Metal(storage))
             }
+            Device::Wgpu(_device) => todo!(),
         }
     }
 
@@ -318,6 +331,7 @@ impl Device {
                 let storage = device.storage_from_cpu_storage(&storage)?;
                 Ok(Storage::Metal(storage))
             }
+            Device::Wgpu(_device) => todo!(),
         }
     }
 }

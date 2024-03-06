@@ -21,6 +21,12 @@ macro_rules! test_device {
         fn $test_metal() -> Result<()> {
             $fn_name(&Device::new_metal(0)?)
         }
+
+        #[cfg(feature = "wgpu")]
+        #[test]
+        fn $test_metal() -> Result<()> {
+            $fn_name(&Device::new_wgpu(0)?)
+        }
     };
 }
 

@@ -1,0 +1,20 @@
+[package]
+name = "candle-wgpu-kernels"
+version = "0.4.1"
+edition = "2021"
+
+description = "Wgpu kernels for Candle"
+repository = "https://github.com/huggingface/candle"
+keywords = ["blas", "tensor", "machine-learning"]
+categories = ["science"]
+license = "MIT OR Apache-2.0"
+
+
+[dependencies]
+wgpu = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+smol = { workspace = true }
+bytemuck = "1.14"
+
+[dev-dependencies]

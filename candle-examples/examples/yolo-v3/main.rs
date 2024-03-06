@@ -150,6 +150,7 @@ pub fn main() -> Result<()> {
     let vb = unsafe { VarBuilder::from_mmaped_safetensors(&[model], DType::F32, &Device::Cpu)? };
     let config = args.config()?;
     let darknet = darknet::parse_config(config)?;
+    println!("config: {darknet:?}");
     let model = darknet.build_model(vb)?;
 
     for image_name in args.images.iter() {

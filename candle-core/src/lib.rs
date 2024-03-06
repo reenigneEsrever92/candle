@@ -50,6 +50,7 @@ pub mod display;
 mod dtype;
 mod dummy_cuda_backend;
 mod dummy_metal_backend;
+mod dummy_wgpu_backend;
 pub mod error;
 mod indexer;
 pub mod layout;
@@ -70,6 +71,8 @@ mod tensor;
 pub mod test_utils;
 pub mod utils;
 mod variable;
+#[cfg(feature = "wgpu")]
+pub mod wgpu_backend;
 
 pub use cpu_backend::CpuStorage;
 pub use device::{Device, DeviceLocation, NdArray};
@@ -95,6 +98,12 @@ pub use metal_backend::{MetalDevice, MetalError, MetalStorage};
 
 #[cfg(not(feature = "metal"))]
 pub use dummy_metal_backend::{MetalDevice, MetalError, MetalStorage};
+
+#[cfg(feature = "wgpu")]
+pub use wgpu_backend::{WgpuDevice, WgpuError, WgpuStorage};
+
+#[cfg(not(feature = "wgpu"))]
+pub use dummy_wgpu_backend::{WgpuDevice, WgpuError, WgpuStorage};
 
 #[cfg(feature = "mkl")]
 extern crate intel_mkl_src;
