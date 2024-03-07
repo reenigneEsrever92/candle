@@ -1,6 +1,15 @@
-use std::{collections::HashMap, num::NonZeroU64, sync::Arc};
+use std::{
+    collections::HashMap,
+    io::Read,
+    num::NonZeroU64,
+    ops::Deref,
+    sync::{Arc, Mutex},
+};
 
-use wgpu::{ShaderModel, ShaderModule};
+use wgpu::{
+    util::{BufferInitDescriptor, DeviceExt},
+    Buffer, ShaderModule,
+};
 
 type WgpuResult<T> = Result<T, WgpuError>;
 
@@ -16,7 +25,7 @@ pub enum WgpuError {
 pub struct WgpuBackend {
     device: Arc<wgpu::Device>,
     queue: Arc<wgpu::Queue>,
-    shaders: WgpuShaders,
+    shaders: Arc<Mutex<WgpuShaders>>,
 }
 
 impl WgpuBackend {
@@ -43,6 +52,7 @@ impl WgpuBackend {
                     Ok(Self {
                         device: Arc::new(device),
                         queue: Arc::new(queue),
+                        shaders: Arc::new(Mutex::new(WgpuShaders::default())),
                     })
                 }
                 Err(e) => e,
@@ -53,26 +63,108 @@ impl WgpuBackend {
     // DType::F32 => "rand_uniform_f32",
     // DType::F16 => "rand_uniform_f16",
     // DType::BF16 => "rand_uniform_bf16",
-    pub fn rand_uniform_f32(&self) -> Vec<u8> {
-        let shader = self.shaders.get_uniform_f32(self);
-        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+    pub fn rand_uniform_f32(&self, amount: usize) -> Vec<u8> {
+        let mut shaders = self.shaders.lock().unwrap();
+
+        // Gets the size in bytes of the buffer.
+        let buffer_size = amount * std::mem::size_of::<f32>();
+        let size = buffer_size as wgpu::BufferAddress;
+        let buffer = Vec::with_capacity(buffer_size);
+
+        // Instantiates buffer without data.
+        // `usage` of buffer specifies how it can be used:
+        //   `BufferUsage::MAP_READ` allows it to be read (outside the shader).
+        //   `BufferUsage::COPY_DST` allows it to be the destination of the copy.
+        let staging_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: None,
-            entries: &[
-                // XXX - some graphics cards do not support empty bind layout groups, so
-                // create a dummy entry.
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    count: None,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        has_dynamic_offset: false,
-                        min_binding_size: Some(NonZeroU64::new(1).unwrap()),
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                    },
-                },
-            ],
+            size,
+            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
         });
-        todo!()
+
+        // Instantiates buffer with data (`numbers`).
+        // Usage allowing the buffer to be:
+        //   A storage buffer (can be bound within a bind group and thus available to a shader).
+        //   The destination of a copy.
+        //   The source of a copy
+        let storage_buffer = self.device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("Storage Buffer"),
+            usage: wgpu::BufferUsages::STORAGE
+                | wgpu::BufferUsages::COPY_DST
+                | wgpu::BufferUsages::COPY_SRC,
+            contents: &buffer,
+        });
+
+        // A bind group defines how buffers are accessed by shaders.
+        // It is to WebGPU what a descriptor set is to Vulkan.
+        // `binding` here refers to the `binding` of a buffer in the shader (`layout(set = 0, binding = 0) buffer`).
+
+        // A pipeline specifies the operation of a shader
+
+        // Instantiates the pipeline.
+        let compute_pipeline =
+            self.device
+                .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                    label: None,
+                    layout: None,
+                    module: shaders.get_uniform_f32(self),
+                    entry_point: "main",
+                });
+
+        // Instantiates the bind group, once again specifying the binding of buffers.
+        let bind_group_layout = compute_pipeline.get_bind_group_layout(0);
+        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: None,
+            layout: &bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: storage_buffer.as_entire_binding(),
+            }],
+        });
+
+        // A command encoder executes one or many pipelines.
+        // It is to WebGPU what a command buffer is to Vulkan.
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+        {
+            let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor::default());
+            cpass.set_pipeline(&compute_pipeline);
+            cpass.set_bind_group(0, &bind_group, &[]);
+            cpass.insert_debug_marker("compute collatz iterations");
+            cpass.dispatch_workgroups(amount as u32, 1, 1); // Number of cells to run, the (x,y,z) size of item being processed
+        }
+        // Sets adds copy operation to command encoder.
+        // Will copy data from storage buffer on GPU to staging buffer on CPU.
+        encoder.copy_buffer_to_buffer(&storage_buffer, 0, &staging_buffer, 0, size);
+
+        // Submits command encoder for processing
+        self.queue.submit(Some(encoder.finish()));
+
+        let buffer_slice = staging_buffer.slice(..);
+
+        // Poll the device in a blocking manner so that our future resolves.
+        // In an actual application, `device.poll(...)` should
+        // be called in an event loop or on another thread.
+        self.device.poll(wgpu::Maintain::Wait);
+
+        // Gets contents of buffer
+        let data = buffer_slice.get_mapped_range();
+
+        // Since contents are got in bytes, this converts these bytes back to u32
+        let result = data.iter().cloned().collect();
+
+        // With the current interface, we have to make sure all mapped views are
+        // dropped before we unmap the buffer.
+        drop(data);
+        staging_buffer.unmap(); // Unmaps buffer from memory
+                                // If you are familiar with C++ these 2 lines can be thought of similarly to:
+                                //   delete myPointer;
+                                //   myPointer = NULL;
+                                // It effectively frees the memory
+
+        // Returns data from buffer
+        result
     }
 
     pub fn rand_uniform_f16(&self) -> Vec<u8> {
@@ -84,15 +176,20 @@ impl WgpuBackend {
     }
 }
 
+#[derive(Debug, Default)]
 struct WgpuShaders {
     rand_uniform_f32: Option<ShaderModule>,
 }
 
 impl WgpuShaders {
-    fn get_uniform_f32(&mut self, backend: &WgpuBackend) -> ShaderModule {
+    fn get_uniform_f32(&mut self, backend: &WgpuBackend) -> &ShaderModule {
         match self.rand_uniform_f32 {
-            Some(shader) => shader,
-            None => self.compile(&backend, include_str!("random.wgsl")),
+            Some(shader) => &shader,
+            None => {
+                let shader = self.compile(&backend, include_str!("random.wgsl"));
+                self.rand_uniform_f32 = Some(shader);
+                &shader
+            }
         }
     }
 
