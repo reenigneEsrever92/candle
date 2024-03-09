@@ -15,6 +15,7 @@ wgpu = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 smol = { workspace = true }
-bytemuck = "1.14"
+bytemuck = { version = "1.14", features = ["derive"] }
+flume = "*"
 
 [dev-dependencies]
