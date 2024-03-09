@@ -1,4 +1,4 @@
-use crate::{DType, DeviceLocation, Layout, MetalError, Shape};
+use crate::{DType, DeviceLocation, Layout, MetalError, Shape, WgpuError};
 
 #[derive(Debug, Clone)]
 pub struct MatMulUnexpectedStriding {
@@ -167,6 +167,9 @@ pub enum Error {
 
     #[error("Metal error {0}")]
     Metal(#[from] MetalError),
+
+    #[error("Wgpu error {0}")]
+    Wgpu(#[from] WgpuError),
 
     #[error(transparent)]
     TryFromIntError(#[from] core::num::TryFromIntError),

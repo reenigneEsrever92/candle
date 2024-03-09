@@ -1,6 +1,10 @@
+use wgpu::core::storage;
+
 use crate::backend::BackendStorage;
 use crate::op::{self, CmpOp, CustomOp1, CustomOp2, CustomOp3, ReduceOp};
-use crate::{CpuStorage, CudaStorage, DType, Device, Error, Layout, MetalStorage, Result, Shape};
+use crate::{
+    CpuStorage, CudaStorage, DType, Device, Error, Layout, MetalStorage, Result, Shape, WgpuStorage,
+};
 
 // We do not want to implement Clone on Storage as cloning may fail because of
 // out of memory. Instead try_clone should be used.
@@ -9,36 +13,43 @@ pub enum Storage {
     Cpu(CpuStorage),
     Cuda(CudaStorage),
     Metal(MetalStorage),
+    Wgpu(WgpuStorage),
 }
 
 impl Storage {
     pub fn try_clone(&self, layout: &Layout) -> Result<Self> {
         match self {
-            Self::Cpu(storage) => Ok(Self::Cpu(storage.clone())),
-            Self::Cuda(storage) => {
+            Storage::Cpu(storage) => Ok(Self::Cpu(storage.clone())),
+            Storage::Cuda(storage) => {
                 let storage = storage.try_clone(layout)?;
                 Ok(Self::Cuda(storage))
             }
-            Self::Metal(storage) => {
+            Storage::Metal(storage) => {
                 let storage = storage.try_clone(layout)?;
                 Ok(Self::Metal(storage))
+            }
+            Storage::Wgpu(storage) => {
+                let storage = storage.try_clone(layout)?;
+                Ok(Self::Wgpu(storage))
             }
         }
     }
 
     pub fn device(&self) -> Device {
         match self {
-            Self::Cpu(_) => Device::Cpu,
-            Self::Cuda(storage) => Device::Cuda(storage.device().clone()),
-            Self::Metal(storage) => Device::Metal(storage.device().clone()),
+            Storage::Cpu(_) => Device::Cpu,
+            Storage::Cuda(storage) => Device::Cuda(storage.device().clone()),
+            Storage::Metal(storage) => Device::Metal(storage.device().clone()),
+            Storage::Wgpu(storage) => Device::Wgpu(storage.device().clone()),
         }
     }
 
     pub fn dtype(&self) -> DType {
         match self {
-            Self::Cpu(storage) => storage.dtype(),
-            Self::Cuda(storage) => storage.dtype(),
-            Self::Metal(storage) => storage.dtype(),
+            Storage::Cpu(storage) => storage.dtype(),
+            Storage::Cuda(storage) => storage.dtype(),
+            Storage::Metal(storage) => storage.dtype(),
+            Storage::Wgpu(storage) => storage.dtype(),
         }
     }
 
@@ -68,13 +79,17 @@ impl Storage {
                 let storage = storage.affine(layout, mul, add)?;
                 Ok(Self::Cpu(storage))
             }
-            Self::Cuda(storage) => {
+            Storage::Cuda(storage) => {
                 let storage = storage.affine(layout, mul, add)?;
                 Ok(Self::Cuda(storage))
             }
-            Self::Metal(storage) => {
+            Storage::Metal(storage) => {
                 let storage = storage.affine(layout, mul, add)?;
                 Ok(Self::Metal(storage))
+            }
+            Storage::Wgpu(storage) => {
+                let storage = storage.affine(layout, mul, add)?;
+                Ok(Self::Wgpu(storage))
             }
         }
     }
@@ -85,13 +100,17 @@ impl Storage {
                 let storage = storage.powf(layout, alpha)?;
                 Ok(Self::Cpu(storage))
             }
-            Self::Cuda(storage) => {
+            Storage::Cuda(storage) => {
                 let storage = storage.powf(layout, alpha)?;
                 Ok(Self::Cuda(storage))
             }
-            Self::Metal(storage) => {
+            Storage::Metal(storage) => {
                 let storage = storage.powf(layout, alpha)?;
                 Ok(Self::Metal(storage))
+            }
+            Storage::Wgpu(storage) => {
+                let storage = storage.powf(layout, alpha)?;
+                Ok(Self::Wgpu(storage))
             }
         }
     }
@@ -102,13 +121,17 @@ impl Storage {
                 let storage = storage.elu(layout, alpha)?;
                 Ok(Self::Cpu(storage))
             }
-            Self::Cuda(storage) => {
+            Storage::Cuda(storage) => {
                 let storage = storage.elu(layout, alpha)?;
                 Ok(Self::Cuda(storage))
             }
-            Self::Metal(storage) => {
+            Storage::Metal(storage) => {
                 let storage = storage.elu(layout, alpha)?;
                 Ok(Self::Metal(storage))
+            }
+            Storage::Wgpu(storage) => {
+                let storage = storage.elu(layout, alpha)?;
+                Ok(Self::Wgpu(storage))
             }
         }
     }
@@ -154,13 +177,17 @@ impl Storage {
                 let storage = storage.reduce_op(op, layout, s)?;
                 Ok(Self::Cpu(storage))
             }
-            Self::Cuda(storage) => {
+            Storage::Cuda(storage) => {
                 let storage = storage.reduce_op(op, layout, s)?;
                 Ok(Self::Cuda(storage))
             }
-            Self::Metal(storage) => {
+            Storage::Metal(storage) => {
                 let storage = storage.reduce_op(op, layout, s)?;
                 Ok(Self::Metal(storage))
+            }
+            Storage::Wgpu(storage) => {
+                let storage = storage.reduce_op(op, layout, s)?;
+                Ok(Self::Wgpu(storage))
             }
         }
     }
@@ -171,30 +198,38 @@ impl Storage {
                 let storage = storage.to_dtype(layout, dtype)?;
                 Ok(Self::Cpu(storage))
             }
-            Self::Cuda(storage) => {
+            Storage::Cuda(storage) => {
                 let storage = storage.to_dtype(layout, dtype)?;
                 Ok(Self::Cuda(storage))
             }
-            Self::Metal(storage) => {
+            Storage::Metal(storage) => {
                 let storage = storage.to_dtype(layout, dtype)?;
                 Ok(Self::Metal(storage))
+            }
+            Storage::Wgpu(storage) => {
+                let storage = storage.to_dtype(layout, dtype)?;
+                Ok(Self::Wgpu(storage))
             }
         }
     }
 
     pub(crate) fn apply_op1(&self, l: &Layout, c: &dyn CustomOp1) -> Result<(Self, Shape)> {
         match self {
-            Self::Cpu(storage) => {
+            Storage::Cpu(storage) => {
                 let (storage, shape) = c.cpu_fwd(storage, l)?;
                 Ok((Self::Cpu(storage), shape))
             }
-            Self::Cuda(storage) => {
+            Storage::Cuda(storage) => {
                 let (storage, shape) = c.cuda_fwd(storage, l)?;
                 Ok((Self::Cuda(storage), shape))
             }
-            Self::Metal(storage) => {
+            Storage::Metal(storage) => {
                 let (storage, shape) = c.metal_fwd(storage, l)?;
                 Ok((Self::Metal(storage), shape))
+            }
+            Storage::Wgpu(storage) => {
+                let (storage, shape) = c.wgpu_fwd(storage, l)?;
+                Ok((Self::Wgpu(storage), shape))
             }
         }
     }
@@ -258,13 +293,17 @@ impl Storage {
                 let storage = storage.unary_impl::<B>(layout)?;
                 Ok(Self::Cpu(storage))
             }
-            Self::Cuda(storage) => {
+            Storage::Cuda(storage) => {
                 let storage = storage.unary_impl::<B>(layout)?;
                 Ok(Self::Cuda(storage))
             }
-            Self::Metal(storage) => {
+            Storage::Metal(storage) => {
                 let storage = storage.unary_impl::<B>(layout)?;
                 Ok(Self::Metal(storage))
+            }
+            Storage::Wgpu(storage) => {
+                let storage = storage.unary_impl::<B>(layout)?;
+                Ok(Self::Wgpu(storage))
             }
         }
     }
@@ -438,13 +477,17 @@ impl Storage {
                 let storage = storage.avg_pool2d(layout, kernel_size, stride)?;
                 Ok(Self::Cpu(storage))
             }
-            Self::Cuda(storage) => {
+            Storage::Cuda(storage) => {
                 let storage = storage.avg_pool2d(layout, kernel_size, stride)?;
                 Ok(Self::Cuda(storage))
             }
-            Self::Metal(storage) => {
+            Storage::Metal(storage) => {
                 let storage = storage.avg_pool2d(layout, kernel_size, stride)?;
                 Ok(Self::Metal(storage))
+            }
+            Storage::Wgpu(storage) => {
+                let storage = storage.avg_pool2d(layout, kernel_size, stride)?;
+                Ok(Self::Wgpu(storage))
             }
         }
     }
@@ -460,13 +503,17 @@ impl Storage {
                 let storage = storage.max_pool2d(layout, kernel_size, stride)?;
                 Ok(Self::Cpu(storage))
             }
-            Self::Cuda(storage) => {
+            Storage::Cuda(storage) => {
                 let storage = storage.max_pool2d(layout, kernel_size, stride)?;
                 Ok(Self::Cuda(storage))
             }
-            Self::Metal(storage) => {
+            Storage::Metal(storage) => {
                 let storage = storage.max_pool2d(layout, kernel_size, stride)?;
                 Ok(Self::Metal(storage))
+            }
+            Storage::Wgpu(storage) => {
+                let storage = storage.max_pool2d(layout, kernel_size, stride)?;
+                Ok(Self::Wgpu(storage))
             }
         }
     }
@@ -477,13 +524,17 @@ impl Storage {
                 let storage = storage.upsample_nearest1d(layout, sz)?;
                 Ok(Self::Cpu(storage))
             }
-            Self::Cuda(storage) => {
+            Storage::Cuda(storage) => {
                 let storage = storage.upsample_nearest1d(layout, sz)?;
                 Ok(Self::Cuda(storage))
             }
-            Self::Metal(storage) => {
+            Storage::Metal(storage) => {
                 let storage = storage.upsample_nearest1d(layout, sz)?;
                 Ok(Self::Metal(storage))
+            }
+            Storage::Wgpu(storage) => {
+                let storage = storage.upsample_nearest1d(layout, sz)?;
+                Ok(Self::Wgpu(storage))
             }
         }
     }
@@ -494,13 +545,17 @@ impl Storage {
                 let storage = storage.upsample_nearest2d(layout, h, w)?;
                 Ok(Self::Cpu(storage))
             }
-            Self::Cuda(storage) => {
+            Storage::Cuda(storage) => {
                 let storage = storage.upsample_nearest2d(layout, h, w)?;
                 Ok(Self::Cuda(storage))
             }
-            Self::Metal(storage) => {
+            Storage::Metal(storage) => {
                 let storage = storage.upsample_nearest2d(layout, h, w)?;
                 Ok(Self::Metal(storage))
+            }
+            Storage::Wgpu(storage) => {
+                let storage = storage.upsample_nearest2d(layout, h, w)?;
+                Ok(Self::Wgpu(storage))
             }
         }
     }

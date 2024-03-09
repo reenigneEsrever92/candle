@@ -1,4 +1,3 @@
-
 const s1 = vec3(u32(13), u32(19), u32(12));
 const s2 = vec3(u32(2), u32(25), u32(4));
 const s3 = vec3(u32(3), u32(11), u32(17));
@@ -13,33 +12,6 @@ const phi = array(
 // used for conversion between int and float
 const unif01_norm32 = f32(4294967295);
 const unif01_inv32 = f32(2.328306436538696289e-10);
-
-struct Input {
-    seed: u32,
-    min: f32,
-    max: f32
-}
-
-@group(0) @binding(0) 
-var<uniform> input: Input;
-@group(0) @binding(1) 
-var<storage, read_write> buffer: array<f32>;
-
-@compute @workgroup_size(64)
-fn ones(
-    @builtin(global_invocation_id) gid: vec3<u32>
-) {
-    buffer[gid.x] = f32(gid.x);
-}
-
-@compute @workgroup_size(64)
-fn rand_uniform_f32(
-    @builtin(global_invocation_id) gid: vec3<u32>
-) {
-    let diff = abs(input.min - input.max);
-    let seed = vec4(input.seed, gid.x, 1, 1);
-    buffer[gid.x] = f32(rand(rng(seed))) * unif01_inv32 * diff + input.min;
-}
 
 fn rand(rng: u32) -> u32 {
         let z1 = taus(rng, s1, u32(429496729));

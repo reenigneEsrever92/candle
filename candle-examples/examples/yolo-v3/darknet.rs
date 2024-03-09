@@ -217,6 +217,7 @@ fn detect(
     image_height: usize,
     classes: usize,
     anchors: &[(usize, usize)],
+    device: &Device,
 ) -> Result<Tensor> {
     let (bsize, _channels, height, _width) = xs.dims4()?;
     let stride = image_height / height;
@@ -228,7 +229,7 @@ fn detect(
         .transpose(1, 2)?
         .contiguous()?
         .reshape((bsize, grid_size * grid_size * nanchors, bbox_attrs))?;
-    let grid = Tensor::arange(0u32, grid_size as u32, &Device::Cpu)?;
+    let grid = Tensor::arange(0u32, grid_size as u32, device)?;
     let a = grid.repeat((grid_size, 1))?;
     let b = a.t()?.contiguous()?;
     let x_offset = a.flatten_all()?.unsqueeze(1)?;
@@ -242,7 +243,7 @@ fn detect(
         .iter()
         .flat_map(|&(x, y)| vec![x as f32 / stride as f32, y as f32 / stride as f32].into_iter())
         .collect();
-    let anchors = Tensor::new(anchors.as_slice(), &Device::Cpu)?
+    let anchors = Tensor::new(anchors.as_slice(), device)?
         .reshape((anchors.len() / 2, 2))?
         .repeat((grid_size * grid_size, 1))?
         .unsqueeze(0)?;
@@ -267,7 +268,7 @@ impl Darknet {
         Ok(image_width)
     }
 
-    pub fn build_model(&self, vb: VarBuilder) -> Result<Func> {
+    pub fn build_model<'d>(&'d self, vb: VarBuilder, device: &'d Device) -> Result<Func> {
         let mut blocks: Vec<(usize, Bl)> = vec![];
         let mut prev_channels: usize = 3;
         for (index, block) in self.blocks.iter().enumerate() {
@@ -299,8 +300,8 @@ impl Darknet {
                     Bl::Shortcut(from) => (prev_ys.last().unwrap() + prev_ys.get(*from).unwrap())?,
                     Bl::Yolo(classes, anchors) => {
                         let xs = prev_ys.last().unwrap_or(xs);
-                        detections.push(detect(xs, image_height, *classes, anchors)?);
-                        Tensor::new(&[0u32], &Device::Cpu)?
+                        detections.push(detect(xs, image_height, *classes, anchors, device)?);
+                        Tensor::new(&[0u32], device)?
                     }
                 };
                 prev_ys.push(ys);

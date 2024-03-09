@@ -1,5 +1,5 @@
 #![allow(clippy::redundant_closure_call)]
-use crate::{CpuStorage, CudaStorage, Layout, MetalStorage, Result, Shape, Tensor};
+use crate::{CpuStorage, CudaStorage, Layout, MetalStorage, Result, Shape, Tensor, WgpuStorage};
 use half::{bf16, f16};
 use num_traits::float::Float;
 
@@ -201,6 +201,14 @@ pub trait CustomOp1 {
     ) -> Result<(MetalStorage, Shape)> {
         Err(crate::Error::Metal(
             format!("no metal implementation for {}", self.name()).into(),
+        ))
+    }
+
+    /// The forward pass, as run on a wgpu device. Note that the storage can use arbitrary strides,
+    /// offsets etc so the associated layout should be used to access it.
+    fn wgpu_fwd(&self, _storage: &WgpuStorage, _layout: &Layout) -> Result<(WgpuStorage, Shape)> {
+        Err(crate::Error::Wgpu(
+            format!("no wgpu implementation for {}", self.name()).into(),
         ))
     }
 

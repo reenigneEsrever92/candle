@@ -4,6 +4,8 @@ extern crate intel_mkl_src;
 #[cfg(feature = "accelerate")]
 extern crate accelerate_src;
 
+use std::time::Instant;
+
 use candle_transformers::object_detection::{non_maximum_suppression, Bbox};
 mod darknet;
 
@@ -146,12 +148,13 @@ pub fn main() -> Result<()> {
     let args = Args::parse();
 
     // Create the model and load the weights from the file.
+    let device = Device::new_metal(0)?;
     let model = args.model()?;
-    let vb = unsafe { VarBuilder::from_mmaped_safetensors(&[model], DType::F32, &Device::Cpu)? };
+    let vb = unsafe { VarBuilder::from_mmaped_safetensors(&[model], DType::F32, &device)? };
     let config = args.config()?;
     let darknet = darknet::parse_config(config)?;
     println!("config: {darknet:?}");
-    let model = darknet.build_model(vb)?;
+    let model = darknet.build_model(vb, &device)?;
 
     for image_name in args.images.iter() {
         println!("processing {image_name}");
@@ -172,10 +175,13 @@ pub fn main() -> Result<()> {
                 )
                 .to_rgb8()
                 .into_raw();
-            Tensor::from_vec(data, (net_width, net_height, 3), &Device::Cpu)?.permute((2, 0, 1))?
+            Tensor::from_vec(data, (net_width, net_height, 3), &device)?.permute((2, 0, 1))?
         };
+
         let image = (image.unsqueeze(0)?.to_dtype(DType::F32)? * (1. / 255.))?;
+        let start = Instant::now();
         let predictions = model.forward(&image)?.squeeze(0)?;
+        println!("Took: {:?}", Instant::now().duration_since(start));
         println!("generated predictions {predictions:?}");
         let image = report(
             &predictions,

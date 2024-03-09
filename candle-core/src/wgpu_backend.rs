@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::{
     backend::{BackendDevice, BackendStorage},
     layout::Layout,
@@ -7,21 +5,62 @@ use crate::{
 };
 
 #[derive(Debug, thiserror::Error)]
-pub enum WgpuError {}
-
-#[derive(Clone)]
-pub struct WgpuDevice {
-    // kernels: Arc<candle_wgpu_kernels::Kernels>,
+pub enum WgpuError {
+    #[error("{0}")]
+    Message(String),
 }
 
-impl std::fmt::Debug for WgpuDevice {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl From<String> for WgpuError {
+    fn from(e: String) -> Self {
+        WgpuError::Message(e)
+    }
+}
+
+#[derive(Clone)]
+pub struct WgpuDevice {}
+
+impl BackendDevice for WgpuDevice {
+    type Storage = WgpuStorage;
+
+    fn new(_ordinal: usize) -> Result<Self> {
+        Ok(Self {})
+    }
+
+    fn location(&self) -> crate::DeviceLocation {
+        todo!()
+    }
+
+    fn same_device(&self, _: &Self) -> bool {
+        todo!()
+    }
+
+    fn zeros_impl(&self, _shape: &crate::Shape, _dtype: DType) -> Result<Self::Storage> {
+        todo!()
+    }
+
+    fn ones_impl(&self, _shape: &crate::Shape, _dtype: DType) -> Result<Self::Storage> {
+        todo!()
+    }
+
+    fn storage_from_cpu_storage(&self, _: &CpuStorage) -> Result<Self::Storage> {
+        todo!()
+    }
+
+    fn rand_uniform(&self, _: &crate::Shape, _: DType, _: f64, _: f64) -> Result<Self::Storage> {
+        todo!()
+    }
+
+    fn rand_normal(&self, _: &crate::Shape, _: DType, _: f64, _: f64) -> Result<Self::Storage> {
+        todo!()
+    }
+
+    fn set_seed(&self, _: u64) -> Result<()> {
         todo!()
     }
 }
 
-impl WgpuDevice {
-    fn new(_ordinal: usize) -> Result<Self> {
+impl std::fmt::Debug for WgpuDevice {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         todo!()
     }
 }
@@ -228,48 +267,6 @@ impl BackendStorage for WgpuStorage {
     }
 
     fn copy_strided_src(&self, _: &mut Self, _: usize, _: &crate::Layout) -> crate::Result<()> {
-        todo!()
-    }
-}
-
-impl WgpuStorage {}
-
-impl BackendDevice for WgpuDevice {
-    type Storage = WgpuStorage;
-
-    fn new(ordinal: usize) -> Result<Self> {
-        todo!()
-    }
-
-    fn location(&self) -> crate::DeviceLocation {
-        todo!()
-    }
-
-    fn same_device(&self, _: &Self) -> bool {
-        todo!()
-    }
-
-    fn zeros_impl(&self, _shape: &crate::Shape, _dtype: DType) -> Result<Self::Storage> {
-        todo!()
-    }
-
-    fn ones_impl(&self, _shape: &crate::Shape, _dtype: DType) -> Result<Self::Storage> {
-        todo!()
-    }
-
-    fn storage_from_cpu_storage(&self, _: &CpuStorage) -> Result<Self::Storage> {
-        todo!()
-    }
-
-    fn rand_uniform(&self, _: &crate::Shape, _: DType, _: f64, _: f64) -> Result<Self::Storage> {
-        todo!()
-    }
-
-    fn rand_normal(&self, _: &crate::Shape, _: DType, _: f64, _: f64) -> Result<Self::Storage> {
-        todo!()
-    }
-
-    fn set_seed(&self, _: u64) -> Result<()> {
         todo!()
     }
 }

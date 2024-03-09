@@ -5,6 +5,8 @@ extern crate intel_mkl_src;
 extern crate accelerate_src;
 
 mod model;
+use std::time::Instant;
+
 use model::{Multiples, YoloV8, YoloV8Pose};
 
 use candle::{DType, Device, IndexOp, Result, Tensor};
@@ -419,7 +421,9 @@ pub fn run<T: Task>(args: Args) -> anyhow::Result<()> {
             .permute((2, 0, 1))?
         };
         let image_t = (image_t.unsqueeze(0)?.to_dtype(DType::F32)? * (1. / 255.))?;
+        let start = Instant::now();
         let predictions = model.forward(&image_t)?.squeeze(0)?;
+        println!("Took: {:?}", Instant::now().duration_since(start));
         println!("generated predictions {predictions:?}");
         let image_t = T::report(
             &predictions,
