@@ -10,8 +10,14 @@ const phi = array(
     u32(0xF86C6A11)
 );
 
+// used for conversion between int and float
+const unif01_norm32 = f32(4294967295);
+const unif01_inv32 = f32(2.328306436538696289e-10);
+
 struct Input {
-    seed: u32
+    seed: u32,
+    min: f32,
+    max: f32
 }
 
 @group(0) @binding(0) 
@@ -30,15 +36,10 @@ fn ones(
 fn rand_uniform_f32(
     @builtin(global_invocation_id) gid: vec3<u32>
 ) {
+    let diff = abs(input.min - input.max);
     let seed = vec4(input.seed, gid.x, 1, 1);
-    buffer[gid.x] = f32(rand(rng(seed)));
+    buffer[gid.x] = f32(rand(rng(seed))) * unif01_inv32 * diff + input.min;
 }
-
-// const unif01_norm32 = u32(4294967295);
-// const unif01_inv32 = f32(2.328306436538696289e-10);
-
-// const pi = radians(180.0);
-// const tau = radians(360.0);
 
 fn rand(rng: u32) -> u32 {
         let z1 = taus(rng, s1, u32(429496729));

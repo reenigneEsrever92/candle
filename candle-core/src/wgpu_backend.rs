@@ -22,10 +22,7 @@ impl std::fmt::Debug for WgpuDevice {
 
 impl WgpuDevice {
     fn new(_ordinal: usize) -> Result<Self> {
-        Self::create_device()
-    }
-
-    fn create_device() -> Result<Self> {
+        todo!()
     }
 }
 
