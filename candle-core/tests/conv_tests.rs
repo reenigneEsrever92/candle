@@ -580,7 +580,7 @@ test_device!(
     conv1d_small,
     conv1d_small_cpu,
     conv1d_small_gpu,
-    conv1d_small_metalm,
+    conv1d_small_metal,
     conv1d_small_wgpu
 );
 test_device!(conv2d, conv2d_cpu, conv2d_gpu, conv2d_metal, conv2d_wgpu);

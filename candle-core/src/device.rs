@@ -163,7 +163,7 @@ impl Device {
             Device::Cpu => DeviceLocation::Cpu,
             Device::Cuda(device) => device.location(),
             Device::Metal(device) => device.location(),
-            Device::Wgpu(device) => todo!(),
+            Device::Wgpu(device) => device.location(),
         }
     }
 

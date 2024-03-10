@@ -1,5 +1,11 @@
+use std::sync::Arc;
+
+use candle_wgpu_kernels::{WgpuBackend, WgpuBackendError};
+use wgpu::Id;
+
 use crate::{
     backend::{BackendDevice, BackendStorage},
+    dtype,
     layout::Layout,
     CpuStorage, DType, Result,
 };
@@ -8,6 +14,8 @@ use crate::{
 pub enum WgpuError {
     #[error("{0}")]
     Message(String),
+    #[error("Wgpu backend error: {0}")]
+    WgpuBackendError(#[from] WgpuBackendError),
 }
 
 impl From<String> for WgpuError {
@@ -17,21 +25,26 @@ impl From<String> for WgpuError {
 }
 
 #[derive(Clone)]
-pub struct WgpuDevice {}
+pub struct WgpuDevice {
+    backend: WgpuBackend,
+}
 
 impl BackendDevice for WgpuDevice {
     type Storage = WgpuStorage;
 
     fn new(_ordinal: usize) -> Result<Self> {
-        Ok(Self {})
+        let backend = WgpuBackend::new().map_err(WgpuError::from)?;
+        Ok(Self { backend })
     }
 
     fn location(&self) -> crate::DeviceLocation {
-        todo!()
+        crate::DeviceLocation::Wgpu {
+            gpu_id: self.backend.get_gpu_id(),
+        }
     }
 
-    fn same_device(&self, _: &Self) -> bool {
-        todo!()
+    fn same_device(&self, rhs: &Self) -> bool {
+        self.backend.get_gpu_id() == rhs.backend.get_gpu_id()
     }
 
     fn zeros_impl(&self, _shape: &crate::Shape, _dtype: DType) -> Result<Self::Storage> {
@@ -42,8 +55,19 @@ impl BackendDevice for WgpuDevice {
         todo!()
     }
 
-    fn storage_from_cpu_storage(&self, _: &CpuStorage) -> Result<Self::Storage> {
-        todo!()
+    fn storage_from_cpu_storage(&self, storage: &CpuStorage) -> Result<Self::Storage> {
+        let buffer = match storage {
+            CpuStorage::U8(storage) => self.backend.create_buffer_with_data(storage),
+            CpuStorage::U32(storage) => self.backend.create_buffer_with_data(storage),
+            CpuStorage::I64(storage) => self.backend.create_buffer_with_data(storage),
+            CpuStorage::BF16(storage) => self.backend.create_buffer_with_data(storage),
+            CpuStorage::F16(storage) => self.backend.create_buffer_with_data(storage),
+            CpuStorage::F32(storage) => self.backend.create_buffer_with_data(storage),
+            CpuStorage::F64(storage) => self.backend.create_buffer_with_data(storage),
+        }
+        .map_err(WgpuError::from)?;
+
+        Ok(Self::Storage::new(buffer, self.clone(), storage.dtype()))
     }
 
     fn rand_uniform(&self, _: &crate::Shape, _: DType, _: f64, _: f64) -> Result<Self::Storage> {
@@ -66,7 +90,17 @@ impl std::fmt::Debug for WgpuDevice {
 }
 
 #[derive(Debug, Clone)]
-pub struct WgpuStorage;
+pub struct WgpuStorage {
+    id: Id<wgpu::Buffer>,
+    device: WgpuDevice,
+    dtype: DType,
+}
+
+impl WgpuStorage {
+    fn new(id: Id<wgpu::Buffer>, device: WgpuDevice, dtype: DType) -> Self {
+        Self { id, device, dtype }
+    }
+}
 
 impl BackendStorage for WgpuStorage {
     type Device = WgpuDevice;
@@ -76,11 +110,11 @@ impl BackendStorage for WgpuStorage {
     }
 
     fn dtype(&self) -> DType {
-        todo!()
+        self.dtype
     }
 
     fn device(&self) -> &Self::Device {
-        todo!()
+        &self.device
     }
 
     fn to_cpu_storage(&self) -> Result<CpuStorage> {
@@ -148,10 +182,10 @@ impl BackendStorage for WgpuStorage {
 
     fn conv1d(
         &self,
-        _l: &crate::Layout,
-        _kernel: &Self,
-        _kernel_l: &crate::Layout,
-        _params: &crate::conv::ParamsConv1D,
+        l: &crate::Layout,
+        kernel: &Self,
+        kernel_l: &crate::Layout,
+        params: &crate::conv::ParamsConv1D,
     ) -> crate::Result<Self> {
         todo!()
     }

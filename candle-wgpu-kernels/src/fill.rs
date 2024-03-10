@@ -6,7 +6,7 @@ use wgpu::{
     BindGroupDescriptor, PipelineLayoutDescriptor,
 };
 
-use crate::{WgpuBackend, WgpuResult};
+use crate::{WgpuBackend, WgpuBackendResult};
 
 const SHADER_CODE_F32: &str = concat!(include_str!("fill.wgsl"), include_str!("fill_f32.wgsl"));
 const SHADER_CODE_F16: &str = concat!(include_str!("fill.wgsl"), include_str!("fill_f16.wgsl"));
@@ -20,7 +20,7 @@ struct FillInput {
 }
 
 impl WgpuBackend {
-    pub fn ones_f32(&self, amount: u64) -> WgpuResult<Vec<f32>> {
+    pub fn ones_f32(&self, amount: u64) -> WgpuBackendResult<Vec<f32>> {
         self.run_kernel_f32("ones", 1, amount, 0.0, 0.0)
             .map(|bytes| bytemuck::cast_slice(&bytes).to_vec())
     }
@@ -31,12 +31,12 @@ impl WgpuBackend {
         amount: u64,
         min: f32,
         max: f32,
-    ) -> WgpuResult<Vec<f32>> {
+    ) -> WgpuBackendResult<Vec<f32>> {
         self.run_kernel_f32("rand_uniform_f32", seed, amount, min, max)
             .map(|bytes| bytemuck::cast_slice(&bytes).to_vec())
     }
 
-    pub fn ones_f16(&self, amount: u64) -> WgpuResult<Vec<u8>> {
+    pub fn ones_f16(&self, amount: u64) -> WgpuBackendResult<Vec<u8>> {
         self.run_kernel_f16("ones", 1, amount, 0.0, 0.0)
     }
 
@@ -47,7 +47,7 @@ impl WgpuBackend {
         amount: u64,
         min: f32,
         max: f32,
-    ) -> WgpuResult<Vec<u8>> {
+    ) -> WgpuBackendResult<Vec<u8>> {
         smol::block_on(async {
             let inp = FillInput { seed, min, max };
 
@@ -227,7 +227,7 @@ impl WgpuBackend {
         amount: u64,
         min: f32,
         max: f32,
-    ) -> WgpuResult<Vec<u8>> {
+    ) -> WgpuBackendResult<Vec<u8>> {
         smol::block_on(async {
             let inp = FillInput { seed, min, max };
 

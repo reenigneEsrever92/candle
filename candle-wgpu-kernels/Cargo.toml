@@ -19,7 +19,7 @@ bytemuck = { version = "1.14", features = ["derive", "extern_crate_alloc"] }
 flume = "*"
 
 [dev-dependencies]
-half = { wrokspace = true, features = [
+half = { workspace = true, features = [
     "num-traits",
     "use-intrinsics",
     "rand_distr",
