@@ -182,12 +182,17 @@ impl BackendStorage for WgpuStorage {
 
     fn conv1d(
         &self,
-        l: &crate::Layout,
+        layout: &crate::Layout,
         kernel: &Self,
         kernel_l: &crate::Layout,
         params: &crate::conv::ParamsConv1D,
     ) -> crate::Result<Self> {
-        todo!()
+        let device = self.device.clone();
+        let shape = layout.shape();
+        let dims = shape.dims();
+        let strides = layout.stride();
+
+        Ok(self.clone())
     }
 
     fn conv_transpose1d(
