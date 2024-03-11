@@ -43,6 +43,8 @@ fn conv1d(dev: &Device) -> Result<()> {
     )?
     .reshape((2, 4, 3))?;
     let res = t.conv1d(&w, 0, 1, 1, 1)?;
+    let res1: Vec<f32> = res.flatten_all().unwrap().to_vec1().unwrap();
+    println!("flattened result: {res1:?}");
     assert_eq!(res.dims(), [1, 2, 3]);
     assert_eq!(
         test_utils::to_vec1_round(&res.flatten_all()?, 4)?,
@@ -50,8 +52,6 @@ fn conv1d(dev: &Device) -> Result<()> {
     );
     let res = t.conv1d(&w, /*padding*/ 1, 1, 1, 1)?;
     assert_eq!(res.dims(), [1, 2, 5]);
-    let res1: Vec<f32> = res.flatten_all().unwrap().to_vec1().unwrap();
-    println!("flattened result: {res1:?}");
     // Same as pytorch default padding: use zeros.
     assert_eq!(
         test_utils::to_vec1_round(&res.flatten_all()?, 4)?,
