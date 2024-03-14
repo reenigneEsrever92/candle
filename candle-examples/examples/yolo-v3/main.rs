@@ -153,7 +153,6 @@ pub fn main() -> Result<()> {
     let vb = unsafe { VarBuilder::from_mmaped_safetensors(&[model], DType::F32, &device)? };
     let config = args.config()?;
     let darknet = darknet::parse_config(config)?;
-    println!("config: {darknet:?}");
     let model = darknet.build_model(vb, &device)?;
 
     for image_name in args.images.iter() {
@@ -179,6 +178,9 @@ pub fn main() -> Result<()> {
         };
 
         let image = (image.unsqueeze(0)?.to_dtype(DType::F32)? * (1. / 255.))?;
+        let start = Instant::now();
+        let predictions = model.forward(&image)?.squeeze(0)?;
+        println!("Took: {:?}", Instant::now().duration_since(start));
         let start = Instant::now();
         let predictions = model.forward(&image)?.squeeze(0)?;
         println!("Took: {:?}", Instant::now().duration_since(start));

@@ -1,6 +1,12 @@
 use bytemuck::Pod;
 use core::slice;
-use std::{cell::RefCell, collections::HashMap, ops::DerefMut, rc::Rc, sync::Arc};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    ops::DerefMut,
+    rc::Rc,
+    sync::{Arc, Mutex},
+};
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
     BindingResource, Buffer, BufferDescriptor, BufferUsages, CommandEncoderDescriptor, Id,
@@ -9,6 +15,7 @@ use wgpu::{
 
 mod conv;
 mod fill;
+mod im2col;
 
 type WgpuBackendResult<T> = Result<T, WgpuBackendError>;
 
@@ -28,7 +35,7 @@ pub enum WgpuBackendError {
 pub struct WgpuBackend {
     device: Arc<wgpu::Device>,
     queue: Arc<wgpu::Queue>,
-    buffers: Arc<RefCell<Vec<Buffer>>>,
+    buffers: Arc<Mutex<Vec<Buffer>>>,
 }
 
 impl WgpuBackend {
@@ -55,7 +62,7 @@ impl WgpuBackend {
                     Ok(Self {
                         device: Arc::new(device),
                         queue: Arc::new(queue),
-                        buffers: Arc::new(RefCell::new(Vec::new())),
+                        buffers: Arc::new(Mutex::new(Vec::new())),
                     })
                 }
                 Err(e) => e,
@@ -91,14 +98,14 @@ impl WgpuBackend {
 
         self.queue.submit(Some(encoder.finish()));
 
-        self.buffers.borrow_mut().push(output_buffer);
+        let mut buffers = self.buffers.lock().unwrap();
+
+        buffers.push(output_buffer);
 
         match self.device.poll(wgpu::Maintain::wait()) {
             // this an error!?
-            MaintainResult::SubmissionQueueEmpty => {
-                Ok(self.buffers.borrow().last().unwrap().global_id())
-            }
-            MaintainResult::Ok => Ok(self.buffers.borrow().last().unwrap().global_id()),
+            MaintainResult::SubmissionQueueEmpty => Ok(buffers.last().unwrap().global_id()),
+            MaintainResult::Ok => Ok(buffers.last().unwrap().global_id()),
         }
     }
 
@@ -112,16 +119,21 @@ impl WgpuBackend {
             mapped_at_creation: false,
         });
 
-        self.buffers.borrow_mut().push(buffer);
+        let mut buffers = self.buffers.lock().unwrap();
 
-        Ok(self.buffers.borrow().last().unwrap().global_id())
+        buffers.push(buffer);
+
+        Ok(buffers.last().unwrap().global_id())
     }
 
     pub fn read_buf(&mut self, buf_id: Id<Buffer>) -> WgpuBackendResult<Vec<u8>> {
         Ok(smol::block_on(async {
             let output_buffer = {
-                let borrow = self.buffers.borrow();
-                let buffer = borrow.iter().find(|buf| buf.global_id() == buf_id).unwrap();
+                let buffers = self.buffers.lock().unwrap();
+                let buffer = buffers
+                    .iter()
+                    .find(|buf| buf.global_id() == buf_id)
+                    .unwrap();
 
                 let output_buffer = self.device.create_buffer(&BufferDescriptor {
                     label: None,
