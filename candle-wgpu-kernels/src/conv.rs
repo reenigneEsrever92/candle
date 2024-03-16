@@ -10,7 +10,7 @@ use crate::{WgpuBackend, WgpuBackendResult};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
-pub struct WgpuConv1DParams {
+pub struct WgpuConvParams {
     batch_size: u32,
     input_length: u32,
     channels_in: u32,
@@ -22,7 +22,7 @@ pub struct WgpuConv1DParams {
     dilation: u32,
 }
 
-impl Default for WgpuConv1DParams {
+impl Default for WgpuConvParams {
     fn default() -> Self {
         Self {
             batch_size: 1,
@@ -42,7 +42,133 @@ impl WgpuBackend {
     pub fn conv1d(
         &mut self,
         input: Id<Buffer>,
-        params: &WgpuConv1DParams,
+        params: &WgpuConvParams,
+    ) -> WgpuBackendResult<Id<Buffer>> {
+        smol::block_on(async {
+            let module = self
+                .device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: None,
+                    source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!(
+                        "conv1d_f32.wgsl"
+                    ))),
+                });
+
+            let output_buffer_id = self.create_buffer(8).unwrap();
+
+            let buffers = self.buffers.borrow();
+
+            let input_buffer = buffers.iter().find(|buf| buf.global_id() == input).unwrap();
+
+            let output_buffer = buffers
+                .iter()
+                .find(|buf| buf.global_id() == output_buffer_id)
+                .unwrap();
+
+            let params_buffer = self.device.create_buffer_init(&BufferInitDescriptor {
+                label: None,
+                contents: bytemuck::bytes_of(params),
+                usage: BufferUsages::UNIFORM,
+            });
+
+            let bind_group_layout =
+                self.device
+                    .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                        label: None,
+                        entries: &[
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 0,
+                                visibility: wgpu::ShaderStages::COMPUTE,
+                                ty: wgpu::BindingType::Buffer {
+                                    ty: wgpu::BufferBindingType::Uniform,
+                                    has_dynamic_offset: false,
+                                    min_binding_size: None,
+                                },
+                                count: None,
+                            },
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 1,
+                                visibility: wgpu::ShaderStages::COMPUTE,
+                                ty: wgpu::BindingType::Buffer {
+                                    ty: wgpu::BufferBindingType::Storage { read_only: false },
+                                    has_dynamic_offset: false,
+                                    min_binding_size: None,
+                                },
+                                count: None,
+                            },
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 2,
+                                visibility: wgpu::ShaderStages::COMPUTE,
+                                ty: wgpu::BindingType::Buffer {
+                                    ty: wgpu::BufferBindingType::Storage { read_only: false },
+                                    has_dynamic_offset: false,
+                                    min_binding_size: None,
+                                },
+                                count: None,
+                            },
+                        ],
+                    });
+
+            let bind_group = self.device.create_bind_group(&BindGroupDescriptor {
+                label: None,
+                layout: &bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: params_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: input_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: output_buffer.as_entire_binding(),
+                    },
+                ],
+            });
+
+            let pipeline_layout = self
+                .device
+                .create_pipeline_layout(&PipelineLayoutDescriptor {
+                    label: None,
+                    bind_group_layouts: &[&bind_group_layout],
+                    push_constant_ranges: &[],
+                });
+
+            let compute_pipeline =
+                self.device
+                    .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                        label: None,
+                        layout: Some(&pipeline_layout),
+                        module: &module,
+                        entry_point: "conv1d",
+                    });
+
+            let mut encoder = self
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+            {
+                let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: None,
+                    timestamp_writes: None,
+                });
+                cpass.set_pipeline(&compute_pipeline);
+                cpass.set_bind_group(0, &bind_group, &[]);
+                cpass.insert_debug_marker("compute");
+                cpass.dispatch_workgroups(64, 1, 1); // Number of cells to run, the (x,y,z) size of item being processed
+            }
+
+            self.queue.submit(Some(encoder.finish()));
+
+            Ok(output_buffer_id)
+        })
+    }
+
+    pub fn conv2d(
+        &mut self,
+        input: Id<Buffer>,
+        params: &WgpuConvParams,
     ) -> WgpuBackendResult<Id<Buffer>> {
         smol::block_on(async {
             let output_buffer_size =
@@ -175,7 +301,16 @@ impl WgpuBackend {
 mod test {
     use crate::WgpuBackend;
 
-    use super::WgpuConv1DParams;
+    use super::WgpuConvParams;
+
+    #[test]
+    fn test_conv2d() {
+        let tensor: [f32; 25] = [2.0; 25];
+        let kernel = [0.5f32, 1.0, 0.5, 1.0, 2.0, 1.0, 0.5, 1.0, 0.5];
+        let expected = [16f32; 9];
+
+        println!("tensor: {tensor:?}");
+    }
 
     #[test]
     fn test_conv1d() {
@@ -201,7 +336,7 @@ mod test {
         let result = backend
             .conv1d(
                 buffer_id,
-                &WgpuConv1DParams {
+                &WgpuConvParams {
                     input_length: 5, // tensor dim 3
                     batch_size: 1,   // tensor dim 1
                     channels_in: 4,  // kernel dim 2 - tensor dim 2
