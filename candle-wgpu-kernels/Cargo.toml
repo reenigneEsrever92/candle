@@ -17,6 +17,7 @@ tracing = { workspace = true }
 smol = { workspace = true }
 bytemuck = { version = "1.14", features = ["derive", "extern_crate_alloc"] }
 flume = "*"
+askama = "0.12"
 
 [dev-dependencies]
 half = { workspace = true, features = [

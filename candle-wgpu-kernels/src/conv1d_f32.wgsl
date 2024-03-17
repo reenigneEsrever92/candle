@@ -25,9 +25,6 @@ fn conv1d(
 ) {
     let tid = gid.x;
     let output_index = tid / params.batch_size + tid;
-    for(int i = 0; i < params.kernel_size; i++) {
-        output[output_index] = 
-    }
      if(gid.x == 0) {
         output[tid] = f32(output_index);
     } else {

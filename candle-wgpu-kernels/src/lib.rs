@@ -1,21 +1,16 @@
 use bytemuck::Pod;
 use core::slice;
-use std::{
-    cell::RefCell,
-    collections::HashMap,
-    ops::DerefMut,
-    rc::Rc,
-    sync::{Arc, Mutex},
-};
+use kernel::{Kernels, Shader};
+use std::sync::{Arc, Mutex};
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
-    BindingResource, Buffer, BufferDescriptor, BufferUsages, CommandEncoderDescriptor, Id,
-    MaintainResult,
+    BindGroupDescriptor, Buffer, BufferDescriptor, BufferUsages, CommandEncoderDescriptor, Id,
+    MaintainResult, PipelineLayoutDescriptor,
 };
 
 mod conv;
 mod fill;
-mod im2col;
+mod kernel;
 
 type WgpuBackendResult<T> = Result<T, WgpuBackendError>;
 
@@ -36,6 +31,7 @@ pub struct WgpuBackend {
     device: Arc<wgpu::Device>,
     queue: Arc<wgpu::Queue>,
     buffers: Arc<Mutex<Vec<Buffer>>>,
+    kernels: Kernels,
 }
 
 impl WgpuBackend {
@@ -63,6 +59,7 @@ impl WgpuBackend {
                         device: Arc::new(device),
                         queue: Arc::new(queue),
                         buffers: Arc::new(Mutex::new(Vec::new())),
+                        kernels: Kernels::default(),
                     })
                 }
                 Err(e) => e,
@@ -126,6 +123,17 @@ impl WgpuBackend {
         Ok(buffers.last().unwrap().global_id())
     }
 
+    pub fn read_buf_as<T>(&mut self, buf_id: Id<Buffer>) -> WgpuBackendResult<Vec<T>> {
+        // TODO check bounds and stuff
+        let result = self.read_buf(buf_id)?;
+        let ptr = result[..].as_ptr() as *mut T;
+        let len = result.len() / core::mem::size_of::<T>();
+
+        core::mem::forget(result);
+
+        Ok(unsafe { Vec::from_raw_parts(ptr, len, len) })
+    }
+
     pub fn read_buf(&mut self, buf_id: Id<Buffer>) -> WgpuBackendResult<Vec<u8>> {
         Ok(smol::block_on(async {
             let output_buffer = {
@@ -177,6 +185,134 @@ impl WgpuBackend {
             output_buffer.unmap(); // Unmaps buffer from memory
             result
         }))
+    }
+
+    pub fn run_shader_with_input<P: Pod>(
+        &mut self,
+        shader: Shader,
+        input: Id<Buffer>,
+        output_size: u64,
+        params: &P,
+    ) -> WgpuBackendResult<Id<Buffer>> {
+        smol::block_on(async {
+            let module = self
+                .device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: None,
+                    source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(
+                        self.kernels.get_shader(shader),
+                    )),
+                });
+
+            let output_buffer_id = self.create_buffer(output_size).unwrap();
+
+            let buffers = self.buffers.lock().unwrap();
+
+            let input_buffer = buffers.iter().find(|buf| buf.global_id() == input).unwrap();
+
+            let output_buffer = buffers
+                .iter()
+                .find(|buf| buf.global_id() == output_buffer_id)
+                .unwrap();
+
+            let params_buffer = self.device.create_buffer_init(&BufferInitDescriptor {
+                label: None,
+                contents: bytemuck::bytes_of(params),
+                usage: BufferUsages::UNIFORM,
+            });
+
+            let bind_group_layout =
+                self.device
+                    .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                        label: None,
+                        entries: &[
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 0,
+                                visibility: wgpu::ShaderStages::COMPUTE,
+                                ty: wgpu::BindingType::Buffer {
+                                    ty: wgpu::BufferBindingType::Uniform,
+                                    has_dynamic_offset: false,
+                                    min_binding_size: None,
+                                },
+                                count: None,
+                            },
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 1,
+                                visibility: wgpu::ShaderStages::COMPUTE,
+                                ty: wgpu::BindingType::Buffer {
+                                    ty: wgpu::BufferBindingType::Storage { read_only: false },
+                                    has_dynamic_offset: false,
+                                    min_binding_size: None,
+                                },
+                                count: None,
+                            },
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 2,
+                                visibility: wgpu::ShaderStages::COMPUTE,
+                                ty: wgpu::BindingType::Buffer {
+                                    ty: wgpu::BufferBindingType::Storage { read_only: false },
+                                    has_dynamic_offset: false,
+                                    min_binding_size: None,
+                                },
+                                count: None,
+                            },
+                        ],
+                    });
+
+            let bind_group = self.device.create_bind_group(&BindGroupDescriptor {
+                label: None,
+                layout: &bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: params_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: input_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: output_buffer.as_entire_binding(),
+                    },
+                ],
+            });
+
+            let pipeline_layout = self
+                .device
+                .create_pipeline_layout(&PipelineLayoutDescriptor {
+                    label: None,
+                    bind_group_layouts: &[&bind_group_layout],
+                    push_constant_ranges: &[],
+                });
+
+            let compute_pipeline =
+                self.device
+                    .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                        label: None,
+                        layout: Some(&pipeline_layout),
+                        module: &module,
+                        entry_point: "conv1d",
+                    });
+
+            let mut encoder = self
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+            {
+                let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: None,
+                    timestamp_writes: None,
+                });
+                cpass.set_pipeline(&compute_pipeline);
+                cpass.set_bind_group(0, &bind_group, &[]);
+                cpass.insert_debug_marker("compute");
+                cpass.dispatch_workgroups(64, 1, 1); // Number of cells to run, the (x,y,z) size of item being processed
+            }
+
+            self.queue.submit(Some(encoder.finish()));
+
+            Ok(output_buffer_id)
+        })
     }
 
     #[inline]
