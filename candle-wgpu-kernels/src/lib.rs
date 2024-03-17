@@ -190,7 +190,8 @@ impl WgpuBackend {
     pub fn run_shader_with_input<P: Pod>(
         &mut self,
         shader: Shader,
-        input: Id<Buffer>,
+        input_buffer_id: Id<Buffer>,
+        weights_buffer_id: Id<Buffer>,
         output_size: u64,
         params: &P,
     ) -> WgpuBackendResult<Id<Buffer>> {
@@ -208,11 +209,19 @@ impl WgpuBackend {
 
             let buffers = self.buffers.lock().unwrap();
 
-            let input_buffer = buffers.iter().find(|buf| buf.global_id() == input).unwrap();
+            let input_buffer = buffers
+                .iter()
+                .find(|buf| buf.global_id() == input_buffer_id)
+                .unwrap();
 
             let output_buffer = buffers
                 .iter()
                 .find(|buf| buf.global_id() == output_buffer_id)
+                .unwrap();
+
+            let weights_buffer = buffers
+                .iter()
+                .find(|buf| buf.global_id() == weights_buffer_id)
                 .unwrap();
 
             let params_buffer = self.device.create_buffer_init(&BufferInitDescriptor {
@@ -240,7 +249,7 @@ impl WgpuBackend {
                                 binding: 1,
                                 visibility: wgpu::ShaderStages::COMPUTE,
                                 ty: wgpu::BindingType::Buffer {
-                                    ty: wgpu::BufferBindingType::Storage { read_only: false },
+                                    ty: wgpu::BufferBindingType::Storage { read_only: true },
                                     has_dynamic_offset: false,
                                     min_binding_size: None,
                                 },
@@ -248,6 +257,16 @@ impl WgpuBackend {
                             },
                             wgpu::BindGroupLayoutEntry {
                                 binding: 2,
+                                visibility: wgpu::ShaderStages::COMPUTE,
+                                ty: wgpu::BindingType::Buffer {
+                                    ty: wgpu::BufferBindingType::Storage { read_only: true },
+                                    has_dynamic_offset: false,
+                                    min_binding_size: None,
+                                },
+                                count: None,
+                            },
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 3,
                                 visibility: wgpu::ShaderStages::COMPUTE,
                                 ty: wgpu::BindingType::Buffer {
                                     ty: wgpu::BufferBindingType::Storage { read_only: false },
@@ -273,6 +292,10 @@ impl WgpuBackend {
                     },
                     wgpu::BindGroupEntry {
                         binding: 2,
+                        resource: weights_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
                         resource: output_buffer.as_entire_binding(),
                     },
                 ],
