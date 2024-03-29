@@ -29,8 +29,13 @@ fn conv1d(
     @builtin(global_invocation_id) gid: vec3<u32>
 ) {
     // new tensor shape: (batch_size, channels_out, tensor_w, tensor_h)
+
+    let k_cs = params.kernel_w * params.kernel_h;
+    let k_ci = gid.x / k_cs;
+
     let cs = params.input_w * params.input_h;
-    let bs = params.channels_in * params.input_w * params.input_h;
+    let bs = params.channels_in * cs;
+
     let ci = gid.x % bs / cs;
     let bi = gid.x / bs;
 
@@ -40,14 +45,14 @@ fn conv1d(
 
     var output_value = f32(0);
 
-    for(var c_out = u32(0); c_out < params.channels_out; c_out++) {
+    for (var c_out = u32(0); c_out < params.channels_out; c_out++) {
         for(var x = u32(0); x < params.kernel_w; x++) {
             for(var y = u32(0); y < params.kernel_h; y++) {
-                let kernel_offset = x + y * params.kernel_w;
+                let kernel_offset = c_out * k_cs + y * params.kernel_w + x;
                 let weight = kernel[kernel_offset];
                 let input_offset = global_offset + x + y * row_offset;
                 let value = weight * input[input_offset];
-                output_value += f32(weight);
+                output_value += f32(value);
             }
         }
     }
