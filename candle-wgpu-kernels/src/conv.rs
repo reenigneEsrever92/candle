@@ -108,6 +108,38 @@ mod test {
 
     #[test]
     fn test_conv1d() {
+        // dims (1, 3, 3, 1)
+        let tensor = [1.0f32; 9];
+        // dims (2, 3, 3, 1)
+        let kernel = [1.0f32; 18];
+        // dims (1, 2, 1, 1)
+        let expected = [9.0f32; 2];
+
+        let backend = WgpuBackend::new().unwrap();
+        let input_buffer = backend.create_buffer_with_data(&tensor).unwrap();
+        let kernel_buffer = backend.create_buffer_with_data(&kernel).unwrap();
+        let output_buffer = backend
+            .conv2d(
+                input_buffer,
+                kernel_buffer,
+                &WgpuConvParams {
+                    input_w: 3,
+                    input_h: 3,
+                    kernel_w: 3,
+                    kernel_h: 3,
+                    channels_out: 2,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        let contents = backend.read_buf_as::<f32>(output_buffer).unwrap();
+
+        assert_eq!(contents.len(), 2);
+        assert_eq!(contents, expected);
+    }
+
+    #[test]
+    fn test_conv1d_1() {
         // dims (1, 4, 5, 1)
         let tensor = [
             0.4f32, -0.8, -0.1, -1.6, 1.2, -0.9, -1.7, 0.1, 0.2, 0.4, 1.8, -0.2, 2.2, -0.7, 0.2,
@@ -131,8 +163,9 @@ mod test {
                 &WgpuConvParams {
                     input_w: 4,
                     input_h: 5,
-                    kernel_w: 3,
+                    kernel_w: 4,
                     kernel_h: 3,
+                    channels_out: 2,
                     ..Default::default()
                 },
             )
@@ -140,6 +173,6 @@ mod test {
         let contents = backend.read_buf_as::<f32>(output_buffer).unwrap();
 
         assert_eq!(contents.len(), 6);
-        assert_eq!(contents[0..=5], expected);
+        assert_eq!(contents, expected);
     }
 }
