@@ -31,31 +31,30 @@ fn conv1d(
     // new tensor shape: (batch_size, channels_out, tensor_w, tensor_h)
 
     let k_cs = params.kernel_w * params.kernel_h;
-    let k_ci = gid.x / k_cs;
+    let k_bs = k_cs * params.channels_out;
+
+    let i_cs = params.input_w * params.input_h;
+
+    let ci = gid.x / k_bs;
 
     let cs = params.input_w * params.input_h;
     let bs = params.channels_in * cs;
 
-    let ci = gid.x % bs / cs;
     let bi = gid.x / bs;
 
     let row = gid.x / params.input_w;
     let row_offset = params.input_w * params.channels_in * params.batch_size;
     let global_offset = row * row_offset;
 
-    var output_value = f32(0);
-
-    for (var c_out = u32(0); c_out < params.channels_out; c_out++) {
+    for(var c_in = u32(0); c_in < params.channels_in; c_in++) {
         for(var x = u32(0); x < params.kernel_w; x++) {
             for(var y = u32(0); y < params.kernel_h; y++) {
-                let kernel_offset = c_out * k_cs + y * params.kernel_w + x;
+                let kernel_offset = c_in * k_cs + y * params.kernel_w + x;
+                let input_offset = c_in * i_cs + y * params.input_w + x;
                 let weight = kernel[kernel_offset];
-                let input_offset = global_offset + x + y * row_offset;
                 let value = weight * input[input_offset];
-                output_value += f32(value);
+                output[gid.x] = output[gid.x] + value;
             }
         }
     }
-
-    output[gid.x] = output_value;
 }

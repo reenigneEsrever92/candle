@@ -8,8 +8,8 @@ use wgpu::{
     MaintainResult, PipelineLayoutDescriptor,
 };
 
-mod conv;
-mod fill;
+pub mod conv;
+pub mod fill;
 mod kernel;
 
 type WgpuBackendResult<T> = Result<T, WgpuBackendError>;
@@ -71,7 +71,7 @@ impl WgpuBackend {
         self.device.global_id().inner() as usize
     }
 
-    pub fn create_buffer_with_data<T>(&self, data: &[T]) -> WgpuBackendResult<wgpu::Id<Buffer>> {
+    pub fn create_buffer_with_data<T>(&self, data: &[T]) -> WgpuBackendResult<Id<Buffer>> {
         let data = self.cast_to_bytes(data);
         let input_buffer = self.device.create_buffer_init(&BufferInitDescriptor {
             label: None,
@@ -81,7 +81,7 @@ impl WgpuBackend {
         let output_buffer = self.device.create_buffer(&BufferDescriptor {
             label: None,
             size: data.len() as u64,
-            usage: BufferUsages::COPY_DST | BufferUsages::STORAGE,
+            usage: BufferUsages::COPY_DST | BufferUsages::STORAGE | BufferUsages::COPY_SRC,
             mapped_at_creation: false,
         });
 
@@ -106,13 +106,11 @@ impl WgpuBackend {
         }
     }
 
-    pub fn create_buffer(&mut self, size: u64) -> WgpuBackendResult<Id<Buffer>> {
+    pub fn create_buffer(&self, size: u64) -> WgpuBackendResult<Id<Buffer>> {
         let buffer = self.device.create_buffer(&BufferDescriptor {
             label: None,
             size,
-            usage: BufferUsages::STORAGE
-                | wgpu::BufferUsages::COPY_DST
-                | wgpu::BufferUsages::COPY_SRC,
+            usage: BufferUsages::STORAGE | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
             mapped_at_creation: false,
         });
 
@@ -123,7 +121,7 @@ impl WgpuBackend {
         Ok(buffers.last().unwrap().global_id())
     }
 
-    pub fn read_buf_as<T>(&mut self, buf_id: Id<Buffer>) -> WgpuBackendResult<Vec<T>> {
+    pub fn read_buf_as<T>(&self, buf_id: Id<Buffer>) -> WgpuBackendResult<Vec<T>> {
         // TODO check bounds and stuff
         let result = self.read_buf(buf_id)?;
         let ptr = result[..].as_ptr() as *mut T;
@@ -134,7 +132,7 @@ impl WgpuBackend {
         Ok(unsafe { Vec::from_raw_parts(ptr, len, len) })
     }
 
-    pub fn read_buf(&mut self, buf_id: Id<Buffer>) -> WgpuBackendResult<Vec<u8>> {
+    pub fn read_buf(&self, buf_id: Id<Buffer>) -> WgpuBackendResult<Vec<u8>> {
         Ok(smol::block_on(async {
             let output_buffer = {
                 let buffers = self.buffers.lock().unwrap();
@@ -188,7 +186,7 @@ impl WgpuBackend {
     }
 
     pub fn run_shader_with_input<P: Pod>(
-        &mut self,
+        &self,
         shader: Shader,
         input_buffer_id: Id<Buffer>,
         weights_buffer_id: Id<Buffer>,

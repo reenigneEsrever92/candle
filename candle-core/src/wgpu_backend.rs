@@ -118,7 +118,12 @@ impl BackendStorage for WgpuStorage {
     }
 
     fn to_cpu_storage(&self) -> Result<CpuStorage> {
-        todo!()
+        let data = self
+            .device
+            .backend
+            .read_buf_as::<f32>(self.id)
+            .map_err(|e| WgpuError::WgpuBackendError(e))?;
+        Ok(CpuStorage::F32(data))
     }
 
     fn affine(&self, _: &crate::Layout, _: f64, _: f64) -> crate::Result<Self> {
@@ -182,17 +187,33 @@ impl BackendStorage for WgpuStorage {
 
     fn conv1d(
         &self,
-        layout: &crate::Layout,
+        layout: &Layout,
         kernel: &Self,
-        kernel_l: &crate::Layout,
+        kernel_l: &Layout,
         params: &crate::conv::ParamsConv1D,
-    ) -> crate::Result<Self> {
-        let device = self.device.clone();
-        let shape = layout.shape();
-        let dims = shape.dims();
-        let strides = layout.stride();
+    ) -> Result<Self> {
+        let params = candle_wgpu_kernels::conv::WgpuConvParams {
+            input_w: 1, // since we use 2d conv for 1d operation
+            input_h: layout.dims()[2] as u32,
+            kernel_w: 1, // same as above
+            kernel_h: kernel_l.dims()[2] as u32,
+            stride: params.stride as u32,
+            batch_size: layout.dims()[0] as u32,
+            channels_in: layout.dims()[1] as u32,
+            channels_out: kernel_l.dims()[0] as u32,
+            ..Default::default()
+        };
 
-        Ok(self.clone())
+        let result = self
+            .device
+            .backend
+            .conv2d(self.id, kernel.id, &params)
+            .map_err(|e| WgpuError::WgpuBackendError(e))?;
+
+        Ok(WgpuStorage {
+            id: result,
+            ..self.clone()
+        })
     }
 
     fn conv_transpose1d(
