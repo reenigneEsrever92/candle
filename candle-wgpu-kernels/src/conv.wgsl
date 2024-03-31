@@ -54,7 +54,7 @@ fn conv1d(
                 let weight = kernel[kernel_offset];
                 let value = input[input_offset] * weight;
 
-                output[gid.x] = f32(row_offset);
+                output[gid.x] += value;
             }
         }
     }
