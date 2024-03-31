@@ -152,7 +152,7 @@ mod test {
             -1.4, 0.4, -1.2, 0.7, 1.6, -0.6, -0.1, -1.4, 0.6,
         ];
         // dims (1, 2, 3, 1)
-        let expected = [1.95, -2.55, 4.03];
+        let expected = [2.67, -1.57, 4.03, -0.97, 3.25, 0.65];
 
         let backend = WgpuBackend::new().unwrap();
         let input_buffer = backend.create_buffer_with_data(&tensor).unwrap();
@@ -162,10 +162,11 @@ mod test {
                 input_buffer,
                 kernel_buffer,
                 &WgpuConvParams {
-                    input_w: 4,
-                    input_h: 5,
-                    kernel_w: 4,
-                    kernel_h: 3,
+                    input_w: 5,
+                    input_h: 1,
+                    kernel_w: 3,
+                    kernel_h: 1,
+                    channels_in: 4,
                     channels_out: 2,
                     ..Default::default()
                 },

@@ -41,18 +41,20 @@ fn conv1d(
     let out_channel = gid.x % out_batch_size / out_channel_size;
 
     let k_cs = params.kernel_w * params.kernel_h;
-    let k_bs = k_cs * params.channels_out;
-    let ci = gid.x / k_bs;
+    let k_bs = k_cs * params.channels_in;
+
+    // FIXME
+    let row_offset = gid.x % params.input_w;
 
     for(var c_in = u32(0); c_in < params.channels_in; c_in++) {
-        for(var x = u32(0); x < params.kernel_w; x++) {
-            for(var y = u32(0); y < params.kernel_h; y++) {
-                let kernel_offset = out_channel * k_cs + y * params.kernel_w + x;
-                let input_offset = out_batch * i_bs + c_in * i_cs + y * params.dilation * params.input_w + x * params.dilation;
+        for(var y = u32(0); y < params.kernel_h; y++) {
+            for(var x = u32(0); x < params.kernel_w; x++) {
+                let kernel_offset = out_channel * k_bs + c_in * k_cs + y * params.kernel_w + x;
+                let input_offset = out_batch * i_bs + c_in * i_cs + y * params.dilation * params.input_w + x * params.dilation + row_offset;
                 let weight = kernel[kernel_offset];
                 let value = input[input_offset] * weight;
 
-                output[gid.x] += f32(value);
+                output[gid.x] = f32(row_offset);
             }
         }
     }
