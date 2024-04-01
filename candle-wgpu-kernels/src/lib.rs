@@ -2,15 +2,17 @@ use bytemuck::Pod;
 use core::slice;
 use kernel::{Kernels, Shader};
 use std::sync::{Arc, Mutex};
+use wgpu::core::id::BufferId;
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
-    BindGroupDescriptor, Buffer, BufferDescriptor, BufferUsages, CommandEncoderDescriptor, Id,
-    MaintainResult, PipelineLayoutDescriptor,
+    BindGroupDescriptor, Buffer, BufferDescriptor, BufferUsages, CommandEncoderDescriptor,
+    DeviceType, Id, MaintainResult, PipelineLayoutDescriptor,
 };
 
 pub mod conv;
 pub mod fill;
 mod kernel;
+mod random;
 
 type WgpuBackendResult<T> = Result<T, WgpuBackendError>;
 
@@ -185,12 +187,11 @@ impl WgpuBackend {
         }))
     }
 
-    pub fn run_shader_with_input<P: Pod>(
+    pub fn run_shader<P: Pod>(
         &self,
         shader: Shader,
-        input_buffer_id: Id<Buffer>,
-        weights_buffer_id: Id<Buffer>,
-        output_size: u64,
+        entry_point: &str,
+        output_buffer_id: Id<Buffer>,
         params: &P,
     ) -> WgpuBackendResult<Id<Buffer>> {
         smol::block_on(async {
@@ -203,7 +204,117 @@ impl WgpuBackend {
                     )),
                 });
 
-            let output_buffer_id = self.create_buffer(output_size).unwrap();
+            let buffers = self.buffers.lock().unwrap();
+
+            let output_buffer = buffers
+                .iter()
+                .find(|buf| buf.global_id() == output_buffer_id)
+                .unwrap();
+
+            let params_buffer = self.device.create_buffer_init(&BufferInitDescriptor {
+                label: None,
+                contents: bytemuck::bytes_of(params),
+                usage: BufferUsages::UNIFORM,
+            });
+
+            let bind_group_layout =
+                self.device
+                    .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                        label: None,
+                        entries: &[
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 0,
+                                visibility: wgpu::ShaderStages::COMPUTE,
+                                ty: wgpu::BindingType::Buffer {
+                                    ty: wgpu::BufferBindingType::Uniform,
+                                    has_dynamic_offset: false,
+                                    min_binding_size: None,
+                                },
+                                count: None,
+                            },
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 1,
+                                visibility: wgpu::ShaderStages::COMPUTE,
+                                ty: wgpu::BindingType::Buffer {
+                                    ty: wgpu::BufferBindingType::Storage { read_only: false },
+                                    has_dynamic_offset: false,
+                                    min_binding_size: None,
+                                },
+                                count: None,
+                            },
+                        ],
+                    });
+
+            let bind_group = self.device.create_bind_group(&BindGroupDescriptor {
+                label: None,
+                layout: &bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: params_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: output_buffer.as_entire_binding(),
+                    },
+                ],
+            });
+
+            let pipeline_layout = self
+                .device
+                .create_pipeline_layout(&PipelineLayoutDescriptor {
+                    label: None,
+                    bind_group_layouts: &[&bind_group_layout],
+                    push_constant_ranges: &[],
+                });
+
+            let compute_pipeline =
+                self.device
+                    .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                        label: None,
+                        layout: Some(&pipeline_layout),
+                        module: &module,
+                        entry_point,
+                    });
+
+            let mut encoder = self
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+            {
+                let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: None,
+                    timestamp_writes: None,
+                });
+                cpass.set_pipeline(&compute_pipeline);
+                cpass.set_bind_group(0, &bind_group, &[]);
+                cpass.insert_debug_marker("compute");
+                cpass.dispatch_workgroups(64, 1, 1); // Number of cells to run, the (x,y,z) size of item being processed
+            }
+
+            self.queue.submit(Some(encoder.finish()));
+
+            Ok(output_buffer_id)
+        })
+    }
+
+    pub fn run_shader_with_input_2<P: Pod>(
+        &self,
+        shader: Shader,
+        entry_point: &str,
+        input_buffer_id: Id<Buffer>,
+        input_buffer_id_2: Id<Buffer>,
+        output_buffer_id: Id<Buffer>,
+        params: &P,
+    ) -> WgpuBackendResult<Id<Buffer>> {
+        smol::block_on(async {
+            let module = self
+                .device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: None,
+                    source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(
+                        self.kernels.get_shader(shader),
+                    )),
+                });
 
             let buffers = self.buffers.lock().unwrap();
 
@@ -212,14 +323,14 @@ impl WgpuBackend {
                 .find(|buf| buf.global_id() == input_buffer_id)
                 .unwrap();
 
+            let input_buffer_2 = buffers
+                .iter()
+                .find(|buf| buf.global_id() == input_buffer_id_2)
+                .unwrap();
+
             let output_buffer = buffers
                 .iter()
                 .find(|buf| buf.global_id() == output_buffer_id)
-                .unwrap();
-
-            let weights_buffer = buffers
-                .iter()
-                .find(|buf| buf.global_id() == weights_buffer_id)
                 .unwrap();
 
             let params_buffer = self.device.create_buffer_init(&BufferInitDescriptor {
@@ -290,7 +401,7 @@ impl WgpuBackend {
                     },
                     wgpu::BindGroupEntry {
                         binding: 2,
-                        resource: weights_buffer.as_entire_binding(),
+                        resource: input_buffer_2.as_entire_binding(),
                     },
                     wgpu::BindGroupEntry {
                         binding: 3,
@@ -313,7 +424,7 @@ impl WgpuBackend {
                         label: None,
                         layout: Some(&pipeline_layout),
                         module: &module,
-                        entry_point: "conv1d",
+                        entry_point,
                     });
 
             let mut encoder = self

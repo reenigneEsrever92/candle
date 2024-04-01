@@ -26,9 +26,10 @@ var<storage, read> kernel: array<f32>;
 var<storage, read_write> output: array<f32>;
 
 @compute @workgroup_size(64)
-fn conv1d(
+fn conv2d(
     @builtin(global_invocation_id) gid: vec3<u32>
 ) {
+    // TODO move calculations from shader to backend
     let i_cs = params.input_w * params.input_h;
     let i_bs = i_cs * params.channels_in;
 

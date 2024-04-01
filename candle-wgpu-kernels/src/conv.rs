@@ -40,14 +40,6 @@ impl Default for WgpuConvParams {
 }
 
 impl WgpuBackend {
-    // pub fn conv1d(
-    //     &mut self,
-    //     input: Id<Buffer>,
-    //     params: &WgpuConvParams,
-    // ) -> WgpuBackendResult<Id<Buffer>> {
-    //     self.run_shader_with_input(Shader::Conv, input, 8, params)
-    // }
-
     pub fn conv2d(
         &self,
         input: Id<Buffer>,
@@ -59,11 +51,14 @@ impl WgpuBackend {
 
         let output_buffer_size = params.batch_size * params.channels_out * out_h * out_w * 4; // 4 bytes for f32
 
-        self.run_shader_with_input(
+        let output_buffer_id = self.create_buffer(output_buffer_size as u64).unwrap();
+
+        self.run_shader_with_input_2(
             Shader::Conv,
+            "conv2d",
             input,
             kernel,
-            output_buffer_size as u64,
+            output_buffer_id,
             params,
         )
     }
@@ -73,6 +68,7 @@ impl WgpuBackend {
 mod test {
     use super::WgpuConvParams;
     use crate::WgpuBackend;
+    use std::time::Instant;
 
     #[test]
     fn test_conv2d() {
@@ -156,6 +152,7 @@ mod test {
         let backend = WgpuBackend::new().unwrap();
         let input_buffer = backend.create_buffer_with_data(&tensor).unwrap();
         let kernel_buffer = backend.create_buffer_with_data(&kernel).unwrap();
+
         let output_buffer = backend
             .conv2d(
                 input_buffer,
@@ -171,6 +168,7 @@ mod test {
                 },
             )
             .unwrap();
+
         let contents = backend
             .read_buf_as::<f32>(output_buffer)
             .unwrap()
@@ -180,6 +178,36 @@ mod test {
 
         assert_eq!(contents.len(), 6);
         assert_eq!(contents, expected);
+    }
+
+    #[test]
+    fn test_conv2d_huge() {
+        // dims (1, 1, 64, 64)
+        let tensor = [1f32; 262144];
+        // dims (2, 4, 3, 1)
+        let kernel = [-0.8f32, -0.3, 0.0, 1.3, 0.2, -1.9, 1.4, 0.9, 0.9];
+
+        let backend = WgpuBackend::new().unwrap();
+        let input_buffer = backend.create_buffer_with_data(&tensor).unwrap();
+        let kernel_buffer = backend.create_buffer_with_data(&kernel).unwrap();
+
+        let start = Instant::now();
+
+        backend
+            .conv2d(
+                input_buffer,
+                kernel_buffer,
+                &WgpuConvParams {
+                    input_w: 512,
+                    input_h: 512,
+                    kernel_w: 3,
+                    kernel_h: 3,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+
+        println!("Took: {:?}", Instant::now().duration_since(start));
     }
 
     #[test]

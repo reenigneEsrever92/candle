@@ -297,7 +297,10 @@ impl Device {
                 let storage = device.zeros_impl(shape, dtype)?;
                 Ok(Storage::Metal(storage))
             }
-            Device::Wgpu(_device) => todo!(),
+            Device::Wgpu(device) => {
+                let storage = device.zeros_impl(shape, dtype)?;
+                Ok(Storage::Wgpu(storage))
+            }
         }
     }
 

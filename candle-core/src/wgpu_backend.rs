@@ -3,12 +3,7 @@ use std::sync::Arc;
 use candle_wgpu_kernels::{WgpuBackend, WgpuBackendError};
 use wgpu::Id;
 
-use crate::{
-    backend::{BackendDevice, BackendStorage},
-    dtype,
-    layout::Layout,
-    CpuStorage, DType, Result,
-};
+use crate::{backend::{BackendDevice, BackendStorage}, dtype, layout::Layout, CpuStorage, DType, Result, Error};
 
 #[derive(Debug, thiserror::Error)]
 pub enum WgpuError {
@@ -16,6 +11,8 @@ pub enum WgpuError {
     Message(String),
     #[error("Wgpu backend error: {0}")]
     WgpuBackendError(#[from] WgpuBackendError),
+    #[error("Unsupported operation: {name}, on type: {dtype}")]
+    UnsupportedOperation { name: String, dtype: DType },
 }
 
 impl From<String> for WgpuError {
@@ -47,8 +44,11 @@ impl BackendDevice for WgpuDevice {
         self.backend.get_gpu_id() == rhs.backend.get_gpu_id()
     }
 
-    fn zeros_impl(&self, _shape: &crate::Shape, _dtype: DType) -> Result<Self::Storage> {
-        todo!()
+    fn zeros_impl(&self, shape: &crate::Shape, dtype: DType) -> Result<Self::Storage> {
+        match dtype {
+            DType::F32 => self.backend.,
+            dtype => Err(Error::Wgpu(WgpuError::UnsupportedOperation { name: "zeroes".to_string(), dtype}))
+        }
     }
 
     fn ones_impl(&self, _shape: &crate::Shape, _dtype: DType) -> Result<Self::Storage> {
