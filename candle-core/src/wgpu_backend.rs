@@ -193,11 +193,12 @@ impl BackendStorage for WgpuStorage {
         params: &crate::conv::ParamsConv1D,
     ) -> Result<Self> {
         let params = candle_wgpu_kernels::conv::WgpuConvParams {
-            input_w: 1, // since we use 2d conv for 1d operation
-            input_h: layout.dims()[2] as u32,
-            kernel_w: 1, // same as above
-            kernel_h: kernel_l.dims()[2] as u32,
+            input_h: 1, // since we use 2d conv for 1d operation
+            input_w: layout.dims()[2] as u32,
+            kernel_h: 1, // same as above
+            kernel_w: kernel_l.dims()[2] as u32,
             stride: params.stride as u32,
+            padding_x: params.padding as u32,
             batch_size: layout.dims()[0] as u32,
             channels_in: layout.dims()[1] as u32,
             channels_out: kernel_l.dims()[0] as u32,

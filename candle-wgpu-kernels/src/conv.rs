@@ -14,7 +14,8 @@ pub struct WgpuConvParams {
     pub kernel_w: u32,
     pub kernel_h: u32,
     pub groups: u32,
-    pub padding: u32,
+    pub padding_x: u32,
+    pub padding_y: u32,
     pub stride: u32,
     pub dilation: u32,
 }
@@ -30,7 +31,8 @@ impl Default for WgpuConvParams {
             kernel_w: 1,
             kernel_h: 1,
             groups: 1,
-            padding: 0,
+            padding_x: 0,
+            padding_y: 0,
             stride: 1,
             dilation: 1,
         }
@@ -52,8 +54,8 @@ impl WgpuBackend {
         kernel: Id<Buffer>,
         params: &WgpuConvParams,
     ) -> WgpuBackendResult<Id<Buffer>> {
-        let out_w = params.input_w - (params.kernel_w - 1) * params.dilation + params.padding * 2;
-        let out_h = params.input_h - (params.kernel_h - 1) * params.dilation + params.padding * 2;
+        let out_w = params.input_w - (params.kernel_w - 1) * params.dilation + params.padding_x * 2;
+        let out_h = params.input_h - (params.kernel_h - 1) * params.dilation + params.padding_y * 2;
 
         let output_buffer_size = params.batch_size * params.channels_out * out_h * out_w * 4; // 4 bytes for f32
 
@@ -69,9 +71,8 @@ impl WgpuBackend {
 
 #[cfg(test)]
 mod test {
-    use crate::WgpuBackend;
-
     use super::WgpuConvParams;
+    use crate::WgpuBackend;
 
     #[test]
     fn test_conv2d() {
@@ -100,8 +101,6 @@ mod test {
             .unwrap();
         let result = backend.read_buf_as::<f32>(result_buffer).unwrap();
 
-        println!("result: {result:?}");
-
         assert_eq!(result.len(), expected.len());
         assert_eq!(result, expected);
     }
@@ -112,8 +111,8 @@ mod test {
         let tensor = [[2.0; 9], [1.0f32; 9]].concat();
         // dims (2, 3, 3, 1)
         let kernel = [1.0f32; 18];
-        // dims (1, 2, 1, 1)
-        let expected = [[18f32; 2], [9f32; 2]].concat();
+        // dims (2, 2, 1, 1)
+        let expected = [18f32, 18.0, 9.0, 9.0];
 
         let backend = WgpuBackend::new().unwrap();
         let input_buffer = backend.create_buffer_with_data(&tensor).unwrap();
@@ -172,9 +171,47 @@ mod test {
                 },
             )
             .unwrap();
-        let contents = backend.read_buf_as::<f32>(output_buffer).unwrap();
+        let contents = backend
+            .read_buf_as::<f32>(output_buffer)
+            .unwrap()
+            .into_iter()
+            .map(|it| (it * 100f32).round() / 100f32)
+            .collect::<Vec<f32>>();
 
         assert_eq!(contents.len(), 6);
+        assert_eq!(contents, expected);
+    }
+
+    #[test]
+    fn test_conv2d_padding() {
+        // dims (1, 1, 3, 3)
+        let tensor = [1f32; 9];
+        // dims (1, 1, 3, 3)
+        let kernel = [1.0f32; 9];
+        // dims (1, 1, 3, 3)
+        let expected = [4f32, 6.0, 4.0, 6.0, 9.0, 6.0, 4.0, 6.0, 4.0];
+
+        let backend = WgpuBackend::new().unwrap();
+        let input_buffer = backend.create_buffer_with_data(&tensor).unwrap();
+        let kernel_buffer = backend.create_buffer_with_data(&kernel).unwrap();
+        let output_buffer = backend
+            .conv2d(
+                input_buffer,
+                kernel_buffer,
+                &WgpuConvParams {
+                    padding_x: 1,
+                    padding_y: 1,
+                    input_w: 3,
+                    input_h: 3,
+                    kernel_w: 3,
+                    kernel_h: 3,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        let contents = backend.read_buf_as::<f32>(output_buffer).unwrap();
+
+        assert_eq!(contents.len(), expected.len());
         assert_eq!(contents, expected);
     }
 }

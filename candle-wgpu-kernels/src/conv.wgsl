@@ -7,7 +7,8 @@ struct Params {
     kernel_w: u32,
     kernel_h: u32,
     groups: u32,
-    padding: u32,
+    padding_x: u32,
+    padding_y: u32,
     stride: u32,
     dilation: u32,
 };
@@ -31,8 +32,8 @@ fn conv1d(
     let i_cs = params.input_w * params.input_h;
     let i_bs = i_cs * params.channels_in;
 
-    let out_w = params.input_w - (params.kernel_w - 1) * params.dilation + params.padding * 2;
-    let out_h = params.input_h - (params.kernel_h - 1) * params.dilation + params.padding * 2;
+    let out_w = params.input_w - (params.kernel_w - 1) * params.dilation + params.padding_x * 2;
+    let out_h = params.input_h - (params.kernel_h - 1) * params.dilation + params.padding_y * 2;
     let out_channel_size = out_w * out_h;
 
     let out_batch_size = out_channel_size * params.channels_out;
@@ -43,18 +44,22 @@ fn conv1d(
     let k_cs = params.kernel_w * params.kernel_h;
     let k_bs = k_cs * params.channels_in;
 
-    // FIXME
-    let row_offset = gid.x % params.input_w;
+    let col_offset = gid.x % (out_batch_size * out_batch + out_channel * out_channel_size) / out_w - params.padding_y;
+    let row_offset = gid.x % out_w - params.padding_x;
 
     for(var c_in = u32(0); c_in < params.channels_in; c_in++) {
         for(var y = u32(0); y < params.kernel_h; y++) {
             for(var x = u32(0); x < params.kernel_w; x++) {
-                let kernel_offset = out_channel * k_bs + c_in * k_cs + y * params.kernel_w + x;
-                let input_offset = out_batch * i_bs + c_in * i_cs + y * params.dilation * params.input_w + x * params.dilation + row_offset;
-                let weight = kernel[kernel_offset];
-                let value = input[input_offset] * weight;
+                var value = f32(0);
 
-                output[gid.x] += value;
+                let kernel_offset = out_channel * k_bs + c_in * k_cs + y * params.kernel_w + x;
+                let input_offset = out_batch * i_bs + c_in * i_cs + col_offset * out_w + y * params.dilation * params.input_w + x * params.dilation + row_offset;
+
+                if(!(col_offset + y < 0 || row_offset + x < 0 || col_offset + y >= params.input_h || row_offset + x >= params.input_w)) {
+                    value = input[input_offset];
+                }
+
+                output[gid.x] += kernel[kernel_offset] * value;
             }
         }
     }
