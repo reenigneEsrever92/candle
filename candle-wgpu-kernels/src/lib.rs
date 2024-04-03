@@ -6,7 +6,7 @@ use wgpu::core::id::BufferId;
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
     BindGroupDescriptor, Buffer, BufferDescriptor, BufferUsages, CommandEncoderDescriptor,
-    DeviceType, Id, MaintainResult, PipelineLayoutDescriptor,
+    DeviceDescriptor, DeviceType, Id, Limits, MaintainResult, PipelineLayoutDescriptor,
 };
 
 pub mod conv;
@@ -55,7 +55,15 @@ impl WgpuBackend {
 
             match adapter {
                 Ok(adapter) => {
-                    let (device, queue) = adapter.request_device(&Default::default(), None).await?;
+                    let (device, queue) = adapter
+                        .request_device(
+                            &DeviceDescriptor {
+                                required_limits: Limits::downlevel_defaults(),
+                                ..Default::default()
+                            },
+                            None,
+                        )
+                        .await?;
 
                     Ok(Self {
                         device: Arc::new(device),
