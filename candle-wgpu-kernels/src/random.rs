@@ -27,6 +27,7 @@ impl WgpuBackend {
 pub mod test {
     use crate::random::RandUniformParams;
     use crate::WgpuBackend;
+    use std::time::Instant;
 
     #[test]
     fn test_fill_random() {
@@ -38,14 +39,16 @@ pub mod test {
             seed: 299792458,
         };
 
-        let output_buffer_size = 2048 * 4;
+        let output_buffer_size = 16_000_000 * 4;
         let output_buffer_id = backend.create_buffer(output_buffer_size as u64).unwrap();
 
+        let start = Instant::now();
         backend.rand_uniform(output_buffer_id, &params).unwrap();
+        println!("Took: {:?}", Instant::now().duration_since(start));
 
         let result = backend.read_buf_as::<f32>(output_buffer_id).unwrap();
 
-        assert_eq!(result.len(), 2048);
+        assert_eq!(result.len(), 16_000_000);
         assert!(result
             .iter()
             .all(|v| { *v >= params.min && *v <= params.max }));
