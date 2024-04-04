@@ -756,6 +756,7 @@ impl Storage {
             (Self::Metal(src), Self::Metal(dst)) => {
                 Ok(src.copy_strided_src(dst, dst_offset, src_l)?)
             }
+            (Self::Wgpu(src), Self::Wgpu(dst)) => Ok(src.copy_strided_src(dst, dst_offset, src_l)?),
             (lhs, rhs) => Err(Error::DeviceMismatchBinaryOp {
                 lhs: lhs.device().location(),
                 rhs: rhs.device().location(),

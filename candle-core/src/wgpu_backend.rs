@@ -3,7 +3,12 @@ use std::sync::Arc;
 use candle_wgpu_kernels::{WgpuBackend, WgpuBackendError};
 use wgpu::Id;
 
-use crate::{backend::{BackendDevice, BackendStorage}, dtype, layout::Layout, CpuStorage, DType, Result, Error};
+use crate::{
+    backend::{BackendDevice, BackendStorage},
+    dtype,
+    layout::Layout,
+    CpuStorage, DType, Error, Result,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum WgpuError {
@@ -12,7 +17,7 @@ pub enum WgpuError {
     #[error("Wgpu backend error: {0}")]
     WgpuBackendError(#[from] WgpuBackendError),
     #[error("Unsupported operation: {name}, on type: {dtype}")]
-    UnsupportedOperation { name: String, dtype: DType },
+    UnsupportedOperation { name: String, dtype: String },
 }
 
 impl From<String> for WgpuError {
@@ -46,8 +51,23 @@ impl BackendDevice for WgpuDevice {
 
     fn zeros_impl(&self, shape: &crate::Shape, dtype: DType) -> Result<Self::Storage> {
         match dtype {
-            DType::F32 => self.backend.,
-            dtype => Err(Error::Wgpu(WgpuError::UnsupportedOperation { name: "zeroes".to_string(), dtype}))
+            DType::F32 => {
+                let buffer_size = shape.dims().iter().product::<usize>() * 4;
+                let buffer = self
+                    .backend
+                    .create_buffer(buffer_size as u64)
+                    .map_err(|e| WgpuError::WgpuBackendError(e))?;
+
+                self.backend
+                    .fill_zeroes(buffer)
+                    .map_err(|e| WgpuError::WgpuBackendError(e))?;
+
+                Ok(WgpuStorage::new(buffer, self.clone(), dtype))
+            }
+            dtype => Err(Error::Wgpu(WgpuError::UnsupportedOperation {
+                name: "zeroes".to_string(),
+                dtype: dtype.as_str().to_string(),
+            })),
         }
     }
 
@@ -321,13 +341,13 @@ impl BackendStorage for WgpuStorage {
         &self,
         _: &Self,
         _: (usize, usize, usize, usize),
-        _: &crate::Layout,
-        _: &crate::Layout,
-    ) -> crate::Result<Self> {
+        _: &Layout,
+        _: &Layout,
+    ) -> Result<Self> {
         todo!()
     }
 
-    fn copy_strided_src(&self, _: &mut Self, _: usize, _: &crate::Layout) -> crate::Result<()> {
+    fn copy_strided_src(&self, _: &mut Self, _: usize, _: &Layout) -> Result<()> {
         todo!()
     }
 }
