@@ -10,6 +10,7 @@ use wgpu::{
 };
 
 pub mod conv;
+mod copy;
 pub mod fill;
 mod kernel;
 mod random;
