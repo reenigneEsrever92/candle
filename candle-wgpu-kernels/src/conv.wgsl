@@ -45,8 +45,8 @@ fn conv2d(
     let k_cs = params.kernel_w * params.kernel_h;
     let k_bs = k_cs * params.channels_in;
 
-    let col_offset = gid.x % (out_batch_size * out_batch + out_channel * out_channel_size) / out_w - params.padding_y;
-    let row_offset = gid.x % out_w - params.padding_x;
+    let row_offset = gid.x % (out_batch_size * out_batch + out_channel * out_channel_size) / out_w - params.padding_y;
+    let col_offset = gid.x % out_w - params.padding_x;
 
     for(var c_in = u32(0); c_in < params.channels_in; c_in++) {
         for(var y = u32(0); y < params.kernel_h; y++) {
@@ -54,9 +54,9 @@ fn conv2d(
                 var value = f32(0);
 
                 let kernel_offset = out_channel * k_bs + c_in * k_cs + y * params.kernel_w + x;
-                let input_offset = out_batch * i_bs + c_in * i_cs + col_offset * out_w + y * params.dilation * params.input_w + x * params.dilation + row_offset;
+                let input_offset = out_batch * i_bs + c_in * i_cs + row_offset * out_w + y * params.dilation * params.input_w + x * params.dilation + col_offset;
 
-                if(!(col_offset + y < 0 || row_offset + x < 0 || col_offset + y >= params.input_h || row_offset + x >= params.input_w)) {
+                if(!(row_offset + y < 0 || col_offset + x < 0 || row_offset + y >= params.input_h || col_offset + x >= params.input_w)) {
                     value = input[input_offset];
                 }
 

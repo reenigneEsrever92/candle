@@ -1,10 +1,8 @@
 struct CopyParams {
     input_w: u32,
     input_h: u32,
-    input_stride_x: u32,
-    input_stride_y: u32,
-    output_stride_x: u32,
-    output_stride_y: u32
+    stride_x: u32,
+    stride_y: u32,
 }
 
 @group(0) @binding(0)
@@ -20,8 +18,12 @@ var<storage, read_write> output: array<f32>;
 fn copy(
     @builtin(global_invocation_id) gid: vec3<u32>
 ) {
-    let input_offset = gid.x * params.input_stride % params.input_w
-    output[gid.x] = 0.0;
+    let out_w = params.input_w / params.stride_x;
+
+    let row = gid.x / out_w;
+    let col = gid.x % out_w;
+
+    output[gid.x] = input[row * params.stride_y + col * params.stride_x];
 }
 
 @compute @workgroup_size(64)
