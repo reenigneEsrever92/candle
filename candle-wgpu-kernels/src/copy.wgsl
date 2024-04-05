@@ -18,12 +18,12 @@ var<storage, read_write> output: array<f32>;
 fn copy(
     @builtin(global_invocation_id) gid: vec3<u32>
 ) {
-    let out_w = params.input_w / params.stride_x;
+    let out_w = (params.input_w + 1) / params.stride_x;
 
     let row = gid.x / out_w;
     let col = gid.x % out_w;
 
-    output[gid.x] = input[row * params.stride_y + col * params.stride_x];
+    output[gid.x] = input[row * params.stride_y * params.input_w + col * params.stride_x];
 }
 
 @compute @workgroup_size(64)
