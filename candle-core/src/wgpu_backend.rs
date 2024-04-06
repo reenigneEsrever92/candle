@@ -347,7 +347,19 @@ impl BackendStorage for WgpuStorage {
         todo!()
     }
 
-    fn copy_strided_src(&self, _: &mut Self, _: usize, _: &Layout) -> Result<()> {
-        todo!()
+    fn copy_strided_src(&self, dst: &mut Self, stride: usize, layout: &Layout) -> Result<()> {
+        self.device
+            .backend
+            .copy(
+                self.id,
+                dst.id,
+                layout.dims().iter().product::<usize>() as u32,
+                1,
+                stride as u32 + 1,
+                1,
+            )
+            .map_err(|e| WgpuError::WgpuBackendError(e))?;
+
+        Ok(())
     }
 }

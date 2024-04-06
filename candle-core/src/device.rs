@@ -338,7 +338,11 @@ impl Device {
                 let storage = device.storage_from_cpu_storage(&storage)?;
                 Ok(Storage::Metal(storage))
             }
-            Device::Wgpu(_device) => todo!(),
+            Device::Wgpu(device) => {
+                let storage = S::to_cpu_storage_owned(data);
+                let storage = device.storage_from_cpu_storage(&storage)?;
+                Ok(Storage::Wgpu(storage))
+            }
         }
     }
 }
