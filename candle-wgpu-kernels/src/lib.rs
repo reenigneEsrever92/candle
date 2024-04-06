@@ -161,7 +161,7 @@ impl WgpuBackend {
 
                 let mut encoder = self
                     .device
-                    .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+                    .create_command_encoder(&CommandEncoderDescriptor { label: None });
 
                 encoder.copy_buffer_to_buffer(buffer, 0, &output_buffer, 0, buffer.size());
 
@@ -172,26 +172,18 @@ impl WgpuBackend {
             };
 
             let buffer_slice = output_buffer.slice(..);
-            // Sets the buffer up for mapping, sending over the result of the mapping back to us when it is finished.
+
             let (sender, receiver) = flume::bounded(1);
             buffer_slice.map_async(wgpu::MapMode::Read, move |v| sender.send(v).unwrap());
 
-            // Poll the device in a blocking manner so that our future resolves.
-            // In an actual application, `device.poll(...)` should
-            // be called in an event loop or on another thread.
             self.device.poll(wgpu::Maintain::wait()).panic_on_timeout();
 
-            // Awaits until `buffer_future` can be read from
             receiver.recv_async().await.unwrap().unwrap();
-            // Gets contents of buffer
             let data = buffer_slice.get_mapped_range();
-            // Since contents are got in bytes, this converts these bytes back to u32
             let result = bytemuck::cast_slice(&data).to_vec();
 
-            // With the current interface, we have to make sure all mapped views are
-            // dropped before we unmap the buffer.
             drop(data);
-            output_buffer.unmap(); // Unmaps buffer from memory
+            output_buffer.unmap();
             result
         }))
     }

@@ -51,7 +51,7 @@ impl BackendDevice for WgpuDevice {
 
     fn zeros_impl(&self, shape: &crate::Shape, dtype: DType) -> Result<Self::Storage> {
         match dtype {
-            DType::F32 => {
+            DType::F32 | DType::U8 => {
                 let buffer_size = shape.dims().iter().product::<usize>() * 4;
                 let buffer = self
                     .backend
@@ -177,7 +177,7 @@ impl BackendStorage for WgpuStorage {
         todo!()
     }
 
-    fn to_dtype(&self, _: &crate::Layout, _: DType) -> crate::Result<Self> {
+    fn to_dtype(&self, layout: &Layout, dtype: DType) -> Result<Self> {
         todo!()
     }
 
@@ -347,17 +347,24 @@ impl BackendStorage for WgpuStorage {
         todo!()
     }
 
-    fn copy_strided_src(&self, dst: &mut Self, stride: usize, layout: &Layout) -> Result<()> {
+    fn copy_strided_src(&self, dst: &mut Self, _dst_offset: usize, layout: &Layout) -> Result<()> {
+        let input_w = layout.dims()[0] as u32;
+        let input_h = if layout.dims().len() > 1 {
+            layout.dims()[0] as u32
+        } else {
+            0
+        };
+
+        let stride_x = layout.stride()[0] as u32;
+        let stride_y = if layout.stride().len() > 1 {
+            layout.stride()[1] as u32
+        } else {
+            0
+        };
+
         self.device
             .backend
-            .copy(
-                self.id,
-                dst.id,
-                layout.dims().iter().product::<usize>() as u32,
-                1,
-                stride as u32 + 1,
-                1,
-            )
+            .copy(self.id, dst.id, input_w, input_h, stride_x, stride_y)
             .map_err(|e| WgpuError::WgpuBackendError(e))?;
 
         Ok(())
