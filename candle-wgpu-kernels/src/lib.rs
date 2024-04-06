@@ -34,7 +34,7 @@ pub struct WgpuBackend {
     device: Arc<wgpu::Device>,
     queue: Arc<wgpu::Queue>,
     buffers: Arc<Mutex<Vec<Buffer>>>,
-    kernels: Kernels,
+    kernels: Arc<Mutex<Kernels>>,
 }
 
 impl WgpuBackend {
@@ -70,7 +70,7 @@ impl WgpuBackend {
                         device: Arc::new(device),
                         queue: Arc::new(queue),
                         buffers: Arc::new(Mutex::new(Vec::new())),
-                        kernels: Kernels::default(),
+                        kernels: Arc::new(Mutex::new(Kernels::default())),
                     })
                 }
                 Err(e) => e,
@@ -196,13 +196,17 @@ impl WgpuBackend {
         params: &P,
     ) -> WgpuBackendResult<Id<Buffer>> {
         smol::block_on(async {
+            let shader = {
+                let mut lock = self.kernels.lock().unwrap();
+                lock.get_shader(shader)
+                // drop lock quickly
+            };
+
             let module = self
                 .device
                 .create_shader_module(wgpu::ShaderModuleDescriptor {
                     label: None,
-                    source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(
-                        self.kernels.get_shader(shader),
-                    )),
+                    source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(shader)),
                 });
 
             let buffers = self.buffers.lock().unwrap();
@@ -307,13 +311,17 @@ impl WgpuBackend {
         params: &P,
     ) -> WgpuBackendResult<Id<Buffer>> {
         smol::block_on(async {
+            let shader = {
+                let mut lock = self.kernels.lock().unwrap();
+                lock.get_shader(shader)
+                // drop lock quickly
+            };
+
             let module = self
                 .device
                 .create_shader_module(wgpu::ShaderModuleDescriptor {
                     label: None,
-                    source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(
-                        self.kernels.get_shader(shader),
-                    )),
+                    source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(shader)),
                 });
 
             let buffers = self.buffers.lock().unwrap();
@@ -438,13 +446,17 @@ impl WgpuBackend {
         params: &P,
     ) -> WgpuBackendResult<Id<Buffer>> {
         smol::block_on(async {
+            let shader = {
+                let mut lock = self.kernels.lock().unwrap();
+                lock.get_shader(shader)
+                // drop lock quickly
+            };
+
             let module = self
                 .device
                 .create_shader_module(wgpu::ShaderModuleDescriptor {
                     label: None,
-                    source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(
-                        self.kernels.get_shader(shader),
-                    )),
+                    source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(shader)),
                 });
 
             let buffers = self.buffers.lock().unwrap();

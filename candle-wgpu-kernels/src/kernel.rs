@@ -14,7 +14,7 @@ pub enum Shader {
 }
 
 impl Kernels {
-    pub(crate) fn get_shader(&self, shader: Shader) -> &str {
+    pub(crate) fn get_shader(&mut self, shader: Shader) -> &'static str {
         match shader {
             Shader::Conv => CONV_SHADER,
             Shader::Fill => FILL_SHADER,
