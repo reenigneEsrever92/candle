@@ -51,7 +51,7 @@ impl BackendDevice for WgpuDevice {
 
     fn zeros_impl(&self, shape: &crate::Shape, dtype: DType) -> Result<Self::Storage> {
         match dtype {
-            DType::F32 | DType::U8 => {
+            DType::F32 => {
                 let buffer_size = shape.dims().iter().product::<usize>() * 4;
                 let buffer = self
                     .backend
@@ -60,6 +60,19 @@ impl BackendDevice for WgpuDevice {
 
                 self.backend
                     .fill_zeroes(buffer)
+                    .map_err(|e| WgpuError::WgpuBackendError(e))?;
+
+                Ok(WgpuStorage::new(buffer, self.clone(), dtype))
+            }
+            DType::U8 => {
+                let buffer_size = shape.dims().iter().product::<usize>();
+                let buffer = self
+                    .backend
+                    .create_buffer(buffer_size as u64)
+                    .map_err(|e| WgpuError::WgpuBackendError(e))?;
+
+                self.backend
+                    .fill_zeroes_u8(buffer)
                     .map_err(|e| WgpuError::WgpuBackendError(e))?;
 
                 Ok(WgpuStorage::new(buffer, self.clone(), dtype))

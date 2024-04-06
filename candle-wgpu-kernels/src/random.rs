@@ -46,6 +46,10 @@ pub mod test {
         backend.rand_uniform(output_buffer_id, &params).unwrap();
         println!("Took: {:?}", Instant::now().duration_since(start));
 
+        let start = Instant::now();
+        backend.rand_uniform(output_buffer_id, &params).unwrap();
+        println!("Took: {:?}", Instant::now().duration_since(start));
+
         let result = backend.read_buf_as::<f32>(output_buffer_id).unwrap();
 
         assert_eq!(result.len(), 16_000_000);
