@@ -5,7 +5,7 @@ use wgpu::{Buffer, Id};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
-struct RandUniformParams {
+pub struct RandUniformParams {
     seed: u32,
     min: f32,
     max: f32,

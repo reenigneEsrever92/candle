@@ -1,12 +1,14 @@
 use bytemuck::Pod;
 use core::slice;
 use kernel::{Kernels, Shader};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use wgpu::core::id::BufferId;
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
     BindGroupDescriptor, Buffer, BufferDescriptor, BufferUsages, CommandEncoderDescriptor,
     DeviceDescriptor, DeviceType, Id, Limits, MaintainResult, PipelineLayoutDescriptor,
+    ShaderModule,
 };
 
 pub mod conv;
@@ -34,7 +36,7 @@ pub struct WgpuBackend {
     device: Arc<wgpu::Device>,
     queue: Arc<wgpu::Queue>,
     buffers: Arc<Mutex<Vec<Buffer>>>,
-    kernels: Kernels,
+    kernels: Arc<Kernels>,
 }
 
 impl WgpuBackend {
@@ -66,11 +68,13 @@ impl WgpuBackend {
                         )
                         .await?;
 
+                    let kernels = Arc::new(Kernels::new(&device));
+
                     Ok(Self {
                         device: Arc::new(device),
                         queue: Arc::new(queue),
                         buffers: Arc::new(Mutex::new(Vec::new())),
-                        kernels: Kernels::default(),
+                        kernels,
                     })
                 }
                 Err(e) => e,
@@ -196,14 +200,7 @@ impl WgpuBackend {
         params: &P,
     ) -> WgpuBackendResult<Id<Buffer>> {
         smol::block_on(async {
-            let module = self
-                .device
-                .create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: None,
-                    source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(
-                        self.kernels.get_shader(shader),
-                    )),
-                });
+            let module = self.get_shader(shader);
 
             let buffers = self.buffers.lock().unwrap();
 
@@ -274,13 +271,13 @@ impl WgpuBackend {
                     .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
                         label: None,
                         layout: Some(&pipeline_layout),
-                        module: &module,
+                        module,
                         entry_point,
                     });
 
             let mut encoder = self
                 .device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+                .create_command_encoder(&CommandEncoderDescriptor { label: None });
             {
                 let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                     label: None,
@@ -307,14 +304,7 @@ impl WgpuBackend {
         params: &P,
     ) -> WgpuBackendResult<Id<Buffer>> {
         smol::block_on(async {
-            let module = self
-                .device
-                .create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: None,
-                    source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(
-                        self.kernels.get_shader(shader),
-                    )),
-                });
+            let module = self.get_shader(shader);
 
             let buffers = self.buffers.lock().unwrap();
 
@@ -404,7 +394,7 @@ impl WgpuBackend {
                     .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
                         label: None,
                         layout: Some(&pipeline_layout),
-                        module: &module,
+                        module,
                         entry_point,
                     });
 
@@ -438,14 +428,7 @@ impl WgpuBackend {
         params: &P,
     ) -> WgpuBackendResult<Id<Buffer>> {
         smol::block_on(async {
-            let module = self
-                .device
-                .create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: None,
-                    source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(
-                        self.kernels.get_shader(shader),
-                    )),
-                });
+            let module = self.get_shader(shader);
 
             let buffers = self.buffers.lock().unwrap();
 
@@ -554,7 +537,7 @@ impl WgpuBackend {
                     .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
                         label: None,
                         layout: Some(&pipeline_layout),
-                        module: &module,
+                        module,
                         entry_point,
                     });
 
@@ -576,6 +559,17 @@ impl WgpuBackend {
 
             Ok(output_buffer_id)
         })
+    }
+
+    #[inline]
+    fn get_shader(&self, shader: Shader) -> &ShaderModule {
+        match shader {
+            Shader::Random => &self.kernels.random,
+            Shader::Conv => &self.kernels.conv,
+            Shader::Fill => &self.kernels.fill,
+            Shader::FillU8 => &self.kernels.fill_u8,
+            Shader::Copy => &self.kernels.copy,
+        }
     }
 
     #[inline]
