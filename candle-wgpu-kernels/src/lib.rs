@@ -12,6 +12,7 @@ use wgpu::{
 };
 
 pub mod conv;
+mod convert;
 mod copy;
 pub mod fill;
 mod kernel;
@@ -569,6 +570,7 @@ impl WgpuBackend {
             Shader::Fill => &self.kernels.fill,
             Shader::FillU8 => &self.kernels.fill_u8,
             Shader::Copy => &self.kernels.copy,
+            Shader::ConvertU8 => &self.kernels.convert_u8_to_f32,
         }
     }
 

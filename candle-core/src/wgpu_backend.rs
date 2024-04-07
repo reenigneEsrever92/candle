@@ -191,7 +191,30 @@ impl BackendStorage for WgpuStorage {
     }
 
     fn to_dtype(&self, layout: &Layout, dtype: DType) -> Result<Self> {
-        todo!()
+        match (self.dtype, dtype) {
+            (DType::U8, DType::F32) => {
+                let output_buffer = self
+                    .device
+                    .backend
+                    .create_buffer(layout.dims().iter().product::<usize>() as u64)
+                    .map_err(|e| WgpuError::WgpuBackendError(e))?;
+
+                self.device
+                    .backend
+                    .convert_u8_to_f32(self.id, output_buffer)
+                    .map_err(|e| WgpuError::WgpuBackendError(e))?;
+
+                Ok(WgpuStorage {
+                    id: output_buffer,
+                    ..self.clone()
+                })
+            }
+            (_, _) => crate::bail!(
+                "Wgpu backend does not support conversion from: {:?}, to: {:?}",
+                self.dtype,
+                dtype
+            ),
+        }
     }
 
     fn unary_impl<B: crate::op::UnaryOpT>(&self, _: &crate::Layout) -> crate::Result<Self> {
