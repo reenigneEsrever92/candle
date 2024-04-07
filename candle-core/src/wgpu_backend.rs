@@ -159,8 +159,22 @@ impl BackendStorage for WgpuStorage {
         Ok(CpuStorage::F32(data))
     }
 
-    fn affine(&self, _: &crate::Layout, _: f64, _: f64) -> crate::Result<Self> {
-        todo!()
+    fn affine(&self, layout: &Layout, mul: f64, add: f64) -> Result<Self> {
+        let output_buffer = self
+            .device
+            .backend
+            .create_buffer(layout.dims().iter().product::<usize>() as u64)
+            .map_err(|e| WgpuError::WgpuBackendError(e))?;
+
+        self.device
+            .backend
+            .affine(self.id, output_buffer, mul as f32, add as f32)
+            .map_err(|e| WgpuError::WgpuBackendError(e))?;
+
+        Ok(WgpuStorage {
+            id: output_buffer,
+            ..self.clone()
+        })
     }
 
     fn powf(&self, _: &crate::Layout, _: f64) -> crate::Result<Self> {
@@ -206,7 +220,8 @@ impl BackendStorage for WgpuStorage {
 
                 Ok(WgpuStorage {
                     id: output_buffer,
-                    ..self.clone()
+                    dtype: DType::F32,
+                    device: self.device.clone(),
                 })
             }
             (_, _) => crate::bail!(
@@ -285,12 +300,34 @@ impl BackendStorage for WgpuStorage {
 
     fn conv2d(
         &self,
-        _l: &crate::Layout,
-        _kernel: &Self,
-        _kernel_l: &crate::Layout,
-        _params: &crate::conv::ParamsConv2D,
-    ) -> crate::Result<Self> {
-        todo!()
+        layout: &Layout,
+        kernel: &Self,
+        kernel_l: &Layout,
+        params: &crate::conv::ParamsConv2D,
+    ) -> Result<Self> {
+        let params = candle_wgpu_kernels::conv::WgpuConvParams {
+            input_w: layout.dims()[2] as u32,
+            input_h: layout.dims()[3] as u32,
+            kernel_w: kernel_l.dims()[2] as u32,
+            kernel_h: kernel_l.dims()[3] as u32,
+            stride: params.stride as u32,
+            padding_x: params.padding as u32,
+            batch_size: layout.dims()[0] as u32,
+            channels_in: layout.dims()[1] as u32,
+            channels_out: kernel_l.dims()[0] as u32,
+            ..Default::default()
+        };
+
+        let result = self
+            .device
+            .backend
+            .conv2d(self.id, kernel.id, &params)
+            .map_err(|e| WgpuError::WgpuBackendError(e))?;
+
+        Ok(WgpuStorage {
+            id: result,
+            ..self.clone()
+        })
     }
 
     fn conv_transpose2d(

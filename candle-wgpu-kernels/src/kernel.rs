@@ -6,6 +6,7 @@ const FILL_SHADER_U8: &str = include_str!("fill_u8.wgsl");
 const RANDOM_SHADER: &str = include_str!("random.wgsl");
 const COPY_SHADER: &str = include_str!("copy.wgsl");
 const CONVERT_U8_TO_F32: &str = include_str!("convert_u8_to_f32.wgsl");
+const AFFINE: &str = include_str!("affine.wgsl");
 
 #[derive(Debug)]
 pub struct Kernels {
@@ -15,6 +16,7 @@ pub struct Kernels {
     pub(crate) random: ShaderModule,
     pub(crate) copy: ShaderModule,
     pub(crate) convert_u8_to_f32: ShaderModule,
+    pub(crate) affine: ShaderModule,
 }
 
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
@@ -25,6 +27,7 @@ pub enum Shader {
     Random,
     Copy,
     ConvertU8,
+    Affine,
 }
 
 impl Kernels {
@@ -53,6 +56,10 @@ impl Kernels {
             convert_u8_to_f32: device.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: None,
                 source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(CONVERT_U8_TO_F32)),
+            }),
+            affine: device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: None,
+                source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(AFFINE)),
             }),
         }
     }

@@ -6,7 +6,6 @@ struct Params {
     channels_out: u32,
     kernel_w: u32,
     kernel_h: u32,
-    groups: u32,
     padding_x: u32,
     padding_y: u32,
     stride: u32,
