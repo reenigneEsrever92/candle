@@ -16,7 +16,23 @@ impl WgpuBackend {
         output_buffer: Id<Buffer>,
     ) -> WgpuBackendResult<()> {
         self.run_shader_with_input(
-            Shader::ConvertU8,
+            Shader::ConvertU8ToF32,
+            "convert",
+            input_buffer_id,
+            output_buffer,
+            &ConvertParams::default(),
+        )?;
+
+        Ok(())
+    }
+
+    pub fn convert_u32_to_f32(
+        &self,
+        input_buffer_id: Id<Buffer>,
+        output_buffer: Id<Buffer>,
+    ) -> WgpuBackendResult<()> {
+        self.run_shader_with_input(
+            Shader::ConvertU8ToF32,
             "convert",
             input_buffer_id,
             output_buffer,

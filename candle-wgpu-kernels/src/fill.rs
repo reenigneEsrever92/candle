@@ -30,6 +30,16 @@ impl WgpuBackend {
         self.run_shader(Shader::FillU8, "zeroes", buffer, &FillParams::default())?;
         Ok(())
     }
+
+    pub fn fill_ones_u32(&self, buffer: Id<Buffer>) -> WgpuBackendResult<()> {
+        self.run_shader(Shader::FillU32, "ones", buffer, &FillParams::default())?;
+        Ok(())
+    }
+
+    pub fn fill_zeroes_u32(&self, buffer: Id<Buffer>) -> WgpuBackendResult<()> {
+        self.run_shader(Shader::FillU32, "zeroes", buffer, &FillParams::default())?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]

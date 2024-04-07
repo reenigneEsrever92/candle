@@ -12,12 +12,14 @@ use wgpu::{
 };
 
 mod affine;
+mod binary_op;
 pub mod conv;
 mod convert;
 mod copy;
 pub mod fill;
 mod kernel;
 mod random;
+mod unary_op;
 
 type WgpuBackendResult<T> = Result<T, WgpuBackendError>;
 
@@ -570,9 +572,13 @@ impl WgpuBackend {
             Shader::Conv => &self.kernels.conv,
             Shader::Fill => &self.kernels.fill,
             Shader::FillU8 => &self.kernels.fill_u8,
+            Shader::FillU32 => &self.kernels.fill_u32,
             Shader::Copy => &self.kernels.copy,
-            Shader::ConvertU8 => &self.kernels.convert_u8_to_f32,
+            Shader::ConvertU8ToF32 => &self.kernels.convert_u8_to_f32,
+            Shader::ConvertU32ToF32 => &self.kernels.convert_u32_to_f32,
             Shader::Affine => &self.kernels.affine,
+            Shader::BinaryOp => &self.kernels.binary_op,
+            Shader::UnaryOp => &self.kernels.unary_op,
         }
     }
 

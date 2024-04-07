@@ -77,6 +77,19 @@ impl BackendDevice for WgpuDevice {
 
                 Ok(WgpuStorage::new(buffer, self.clone(), dtype))
             }
+            DType::U32 => {
+                let buffer_size = shape.dims().iter().product::<usize>() * 4;
+                let buffer = self
+                    .backend
+                    .create_buffer(buffer_size as u64)
+                    .map_err(|e| WgpuError::WgpuBackendError(e))?;
+
+                self.backend
+                    .fill_zeroes_u32(buffer)
+                    .map_err(|e| WgpuError::WgpuBackendError(e))?;
+
+                Ok(WgpuStorage::new(buffer, self.clone(), dtype))
+            }
             dtype => Err(Error::Wgpu(WgpuError::UnsupportedOperation {
                 name: "zeroes".to_string(),
                 dtype: dtype.as_str().to_string(),
@@ -127,12 +140,6 @@ pub struct WgpuStorage {
     id: Id<wgpu::Buffer>,
     device: WgpuDevice,
     dtype: DType,
-}
-
-impl WgpuStorage {
-    fn new(id: Id<wgpu::Buffer>, device: WgpuDevice, dtype: DType) -> Self {
-        Self { id, device, dtype }
-    }
 }
 
 impl BackendStorage for WgpuStorage {
@@ -224,6 +231,24 @@ impl BackendStorage for WgpuStorage {
                     device: self.device.clone(),
                 })
             }
+            (DType::U32, DType::F32) => {
+                let output_buffer = self
+                    .device
+                    .backend
+                    .create_buffer(layout.dims().iter().product::<usize>() as u64)
+                    .map_err(|e| WgpuError::WgpuBackendError(e))?;
+
+                self.device
+                    .backend
+                    .convert_u8_to_f32(self.id, output_buffer)
+                    .map_err(|e| WgpuError::WgpuBackendError(e))?;
+
+                Ok(WgpuStorage {
+                    id: output_buffer,
+                    dtype: DType::F32,
+                    device: self.device.clone(),
+                })
+            }
             (_, _) => crate::bail!(
                 "Wgpu backend does not support conversion from: {:?}, to: {:?}",
                 self.dtype,
@@ -232,17 +257,32 @@ impl BackendStorage for WgpuStorage {
         }
     }
 
-    fn unary_impl<B: crate::op::UnaryOpT>(&self, _: &crate::Layout) -> crate::Result<Self> {
-        todo!()
+    fn unary_impl<B: crate::op::UnaryOpT>(&self, layout: &Layout) -> Result<Self> {
+        let op = B::NAME;
+
+        match op {
+            "sqrt" => self.unary_sqrt(layout),
+            "neg" => self.unary_neg(layout),
+            _ => crate::bail!("Wgpu backend does not support unary operation: {op}"),
+        }
     }
 
     fn binary_impl<B: crate::op::BinaryOpT>(
         &self,
-        _: &Self,
-        _: &crate::Layout,
-        _: &crate::Layout,
-    ) -> crate::Result<Self> {
-        todo!()
+        rhs: &Self,
+        lhs_l: &Layout,
+        rhs_l: &Layout,
+    ) -> Result<Self> {
+        let op = B::NAME;
+
+        match op {
+            "add" => self.binary_add(rhs, lhs_l, rhs_l),
+            "sub" => self.binary_sub(rhs, lhs_l, rhs_l),
+            "mul" => self.binary_mul(rhs, lhs_l, rhs_l),
+            "div" => self.binary_div(rhs, lhs_l, rhs_l),
+            "maximum" => self.binary_max(rhs, lhs_l, rhs_l),
+            _ => crate::bail!("Wgpu backend does not support binary operation: {op}"),
+        }
     }
 
     fn where_cond(
@@ -441,5 +481,182 @@ impl BackendStorage for WgpuStorage {
             .map_err(|e| WgpuError::WgpuBackendError(e))?;
 
         Ok(())
+    }
+}
+
+impl WgpuStorage {
+    fn new(id: Id<wgpu::Buffer>, device: WgpuDevice, dtype: DType) -> Self {
+        Self { id, device, dtype }
+    }
+
+    fn binary_add(&self, rhs: &Self, _lhs_l: &Layout, _rhs_l: &Layout) -> Result<Self> {
+        match (self.dtype, rhs.dtype) {
+            (DType::F32, DType::F32) => {
+                let output_buffer = self
+                    .device
+                    .backend
+                    .create_buffer(_lhs_l.dims().iter().product::<usize>() as u64)
+                    .map_err(|e| WgpuError::WgpuBackendError(e))?;
+
+                self.device
+                    .backend
+                    .binary_add(self.id, rhs.id, output_buffer)
+                    .map_err(|e| WgpuError::WgpuBackendError(e))?;
+
+                Ok(WgpuStorage {
+                    id: output_buffer,
+                    ..self.clone()
+                })
+            }
+            (d_type_lhs, d_type_rhs) => crate::bail!(
+                "Wgpu backend does not support binary op add for types: {d_type_lhs:?}, {d_type_rhs:?}"
+            ),
+        }
+    }
+
+    fn binary_sub(&self, rhs: &Self, _lhs_l: &Layout, _rhs_l: &Layout) -> Result<Self> {
+        match (self.dtype, rhs.dtype) {
+            (DType::F32, DType::F32) => {
+                let output_buffer = self
+                    .device
+                    .backend
+                    .create_buffer(_lhs_l.dims().iter().product::<usize>() as u64)
+                    .map_err(|e| WgpuError::WgpuBackendError(e))?;
+
+                self.device
+                    .backend
+                    .binary_sub(self.id, rhs.id, output_buffer)
+                    .map_err(|e| WgpuError::WgpuBackendError(e))?;
+
+                Ok(WgpuStorage {
+                    id: output_buffer,
+                    ..self.clone()
+                })
+            }
+            (d_type_lhs, d_type_rhs) => crate::bail!(
+                "Wgpu backend does not support binary op sub for types: {d_type_lhs:?}, {d_type_rhs:?}"
+            ),
+        }
+    }
+
+    fn binary_mul(&self, rhs: &Self, _lhs_l: &Layout, _rhs_l: &Layout) -> Result<Self> {
+        match (self.dtype, rhs.dtype) {
+            (DType::F32, DType::F32) => {
+                let output_buffer = self
+                    .device
+                    .backend
+                    .create_buffer(_lhs_l.dims().iter().product::<usize>() as u64)
+                    .map_err(|e| WgpuError::WgpuBackendError(e))?;
+
+                self.device
+                    .backend
+                    .binary_mul(self.id, rhs.id, output_buffer)
+                    .map_err(|e| WgpuError::WgpuBackendError(e))?;
+
+                Ok(WgpuStorage {
+                    id: output_buffer,
+                    ..self.clone()
+                })
+            }
+            (d_type_lhs, d_type_rhs) => crate::bail!(
+                "Wgpu backend does not support binary op mul for types: {d_type_lhs:?}, {d_type_rhs:?}"
+            ),
+        }
+    }
+
+    fn binary_div(&self, rhs: &Self, _lhs_l: &Layout, _rhs_l: &Layout) -> Result<Self> {
+        match (self.dtype, rhs.dtype) {
+            (DType::F32, DType::F32) => {
+                let output_buffer = self
+                    .device
+                    .backend
+                    .create_buffer(_lhs_l.dims().iter().product::<usize>() as u64)
+                    .map_err(|e| WgpuError::WgpuBackendError(e))?;
+
+                self.device
+                    .backend
+                    .binary_div(self.id, rhs.id, output_buffer)
+                    .map_err(|e| WgpuError::WgpuBackendError(e))?;
+
+                Ok(WgpuStorage {
+                    id: output_buffer,
+                    ..self.clone()
+                })
+            }
+            (d_type_lhs, d_type_rhs) => crate::bail!(
+                "Wgpu backend does not support binary op div for types: {d_type_lhs:?}, {d_type_rhs:?}"
+            ),
+        }
+    }
+
+    fn binary_max(&self, rhs: &Self, _lhs_l: &Layout, _rhs_l: &Layout) -> Result<Self> {
+        match (self.dtype, rhs.dtype) {
+            (DType::F32, DType::F32) => {
+                let output_buffer = self
+                    .device
+                    .backend
+                    .create_buffer(_lhs_l.dims().iter().product::<usize>() as u64)
+                    .map_err(|e| WgpuError::WgpuBackendError(e))?;
+
+                self.device
+                    .backend
+                    .binary_max(self.id, rhs.id, output_buffer)
+                    .map_err(|e| WgpuError::WgpuBackendError(e))?;
+
+                Ok(WgpuStorage {
+                    id: output_buffer,
+                    ..self.clone()
+                })
+            }
+            (d_type_lhs, d_type_rhs) => crate::bail!(
+                "Wgpu backend does not support binary op div for types: {d_type_lhs:?}, {d_type_rhs:?}"
+            ),
+        }
+    }
+
+    fn unary_sqrt(&self, layout: &Layout) -> Result<Self> {
+        match self.dtype {
+            DType::F32 => {
+                let output_buffer = self
+                    .device
+                    .backend
+                    .create_buffer(layout.dims().iter().product::<usize>() as u64)
+                    .map_err(WgpuError::WgpuBackendError)?;
+
+                self.device
+                    .backend
+                    .sqrt(self.id, output_buffer)
+                    .map_err(WgpuError::WgpuBackendError)?;
+
+                Ok(WgpuStorage {
+                    id: output_buffer,
+                    ..self.clone()
+                })
+            }
+            d_type => crate::bail!("Wgpu backend does not support op sqrt for type: {d_type:?}"),
+        }
+    }
+
+    fn unary_neg(&self, layout: &Layout) -> Result<Self> {
+        match self.dtype {
+            DType::F32 => {
+                let output_buffer = self
+                    .device
+                    .backend
+                    .create_buffer(layout.dims().iter().product::<usize>() as u64)
+                    .map_err(WgpuError::WgpuBackendError)?;
+
+                self.device
+                    .backend
+                    .neg(self.id, output_buffer)
+                    .map_err(WgpuError::WgpuBackendError)?;
+
+                Ok(WgpuStorage {
+                    id: output_buffer,
+                    ..self.clone()
+                })
+            }
+            d_type => crate::bail!("Wgpu backend does not support op sqrt for type: {d_type:?}"),
+        }
     }
 }
