@@ -1925,6 +1925,7 @@ impl Tensor {
                     Storage::Cuda(cuda.storage_from_cpu_storage(&cpu_storage)?)
                 }
                 (Storage::Cpu(storage), Device::Cpu) => Storage::Cpu(storage.clone()),
+                (Storage::Wgpu(storage), Device::Cpu) => Storage::Cpu(storage.to_cpu_storage()?),
                 _ => {
                     bail!("not implemented yet")
                 }

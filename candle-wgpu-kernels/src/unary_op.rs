@@ -33,6 +33,30 @@ impl WgpuBackend {
 
         Ok(())
     }
+
+    pub fn exp(&self, operand: Id<Buffer>, output: Id<Buffer>) -> WgpuBackendResult<()> {
+        self.run_shader_with_input(
+            Shader::UnaryOp,
+            "exp_f32",
+            operand,
+            output,
+            &UnaryOpParams::default(),
+        )?;
+
+        Ok(())
+    }
+
+    pub fn recip(&self, operand: Id<Buffer>, output: Id<Buffer>) -> WgpuBackendResult<()> {
+        self.run_shader_with_input(
+            Shader::UnaryOp,
+            "recip",
+            operand,
+            output,
+            &UnaryOpParams::default(),
+        )?;
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]

@@ -11,6 +11,7 @@ const CONVERT_U32_TO_F32: &str = include_str!("convert_u32_to_f32.wgsl");
 const AFFINE: &str = include_str!("affine.wgsl");
 const BINARY_OP: &str = include_str!("binary_op.wgsl");
 const UNARY_OP: &str = include_str!("unary_op.wgsl");
+const UPSAMPLE_NEAREST: &str = include_str!("upsample_nearest.wgsl");
 
 #[derive(Debug)]
 pub struct Kernels {
@@ -25,6 +26,7 @@ pub struct Kernels {
     pub(crate) affine: ShaderModule,
     pub(crate) binary_op: ShaderModule,
     pub(crate) unary_op: ShaderModule,
+    pub(crate) uspample_nearest: ShaderModule,
 }
 
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
@@ -40,6 +42,7 @@ pub enum Shader {
     Affine,
     BinaryOp,
     UnaryOp,
+    UpsampleNearest,
 }
 
 impl Kernels {
@@ -88,6 +91,10 @@ impl Kernels {
             unary_op: device.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: None,
                 source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(UNARY_OP)),
+            }),
+            uspample_nearest: device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: None,
+                source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(UPSAMPLE_NEAREST)),
             }),
         }
     }

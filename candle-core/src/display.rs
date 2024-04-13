@@ -17,7 +17,9 @@ impl Tensor {
             crate::DeviceLocation::Metal { gpu_id } => {
                 format!(", metal:{}", gpu_id)
             }
-            crate::DeviceLocation::Wgpu { gpu_id: _ } => todo!(),
+            crate::DeviceLocation::Wgpu { gpu_id } => {
+                format!(", wgpu:{}", gpu_id)
+            }
         };
 
         write!(f, "Tensor[")?;

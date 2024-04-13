@@ -263,6 +263,8 @@ impl BackendStorage for WgpuStorage {
         match op {
             "sqrt" => self.unary_sqrt(layout),
             "neg" => self.unary_neg(layout),
+            "exp" => self.unary_exp(layout),
+            "recip" => self.unary_recip(layout),
             _ => crate::bail!("Wgpu backend does not support unary operation: {op}"),
         }
     }
@@ -402,8 +404,31 @@ impl BackendStorage for WgpuStorage {
         todo!()
     }
 
-    fn upsample_nearest2d(&self, _: &crate::Layout, _: usize, _: usize) -> crate::Result<Self> {
-        todo!()
+    fn upsample_nearest2d(&self, layout: &Layout, out_w: usize, out_h: usize) -> Result<Self> {
+        let output_buffer = self
+            .device
+            .backend
+            .create_buffer((layout.dims().iter().take(2).product::<usize>() * out_w * out_h) as u64)
+            .map_err(WgpuError::WgpuBackendError)?;
+
+        self.device
+            .backend
+            .upsample_nearest(
+                layout.dims()[0] as u32,
+                layout.dims()[1] as u32,
+                layout.dims()[2] as u32,
+                layout.dims()[3] as u32,
+                out_w as u32,
+                out_h as u32,
+                self.id,
+                output_buffer,
+            )
+            .map_err(WgpuError::WgpuBackendError)?;
+
+        Ok(Self {
+            id: output_buffer,
+            ..self.clone()
+        })
     }
 
     fn gather(
@@ -657,6 +682,51 @@ impl WgpuStorage {
                 })
             }
             d_type => crate::bail!("Wgpu backend does not support op sqrt for type: {d_type:?}"),
+        }
+    }
+    fn unary_exp(&self, layout: &Layout) -> Result<Self> {
+        match self.dtype {
+            DType::F32 => {
+                let output_buffer = self
+                    .device
+                    .backend
+                    .create_buffer(layout.dims().iter().product::<usize>() as u64)
+                    .map_err(WgpuError::WgpuBackendError)?;
+
+                self.device
+                    .backend
+                    .exp(self.id, output_buffer)
+                    .map_err(WgpuError::WgpuBackendError)?;
+
+                Ok(WgpuStorage {
+                    id: output_buffer,
+                    ..self.clone()
+                })
+            }
+            d_type => crate::bail!("Wgpu backend does not support op exp for type: {d_type:?}"),
+        }
+    }
+
+    fn unary_recip(&self, layout: &Layout) -> Result<Self> {
+        match self.dtype {
+            DType::F32 => {
+                let output_buffer = self
+                    .device
+                    .backend
+                    .create_buffer(layout.dims().iter().product::<usize>() as u64)
+                    .map_err(WgpuError::WgpuBackendError)?;
+
+                self.device
+                    .backend
+                    .recip(self.id, output_buffer)
+                    .map_err(WgpuError::WgpuBackendError)?;
+
+                Ok(WgpuStorage {
+                    id: output_buffer,
+                    ..self.clone()
+                })
+            }
+            d_type => crate::bail!("Wgpu backend does not support op recip for type: {d_type:?}"),
         }
     }
 }

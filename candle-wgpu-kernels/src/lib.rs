@@ -20,6 +20,7 @@ pub mod fill;
 mod kernel;
 mod random;
 mod unary_op;
+mod upsample_nearest;
 
 type WgpuBackendResult<T> = Result<T, WgpuBackendError>;
 
@@ -579,6 +580,7 @@ impl WgpuBackend {
             Shader::Affine => &self.kernels.affine,
             Shader::BinaryOp => &self.kernels.binary_op,
             Shader::UnaryOp => &self.kernels.unary_op,
+            Shader::UpsampleNearest => &self.kernels.uspample_nearest,
         }
     }
 
