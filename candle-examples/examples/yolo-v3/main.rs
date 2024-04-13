@@ -181,9 +181,6 @@ pub fn main() -> Result<()> {
         let start = Instant::now();
         let predictions = model.forward(&image)?.squeeze(0)?;
         println!("Took: {:?}", Instant::now().duration_since(start));
-        let start = Instant::now();
-        let predictions = model.forward(&image)?.squeeze(0)?;
-        println!("Took: {:?}", Instant::now().duration_since(start));
         println!("generated predictions {predictions:?}");
         let image = report(
             &predictions,

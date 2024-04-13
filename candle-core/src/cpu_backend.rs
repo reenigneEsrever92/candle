@@ -2661,6 +2661,23 @@ impl BackendStorage for CpuStorage {
     fn to_cpu_storage(&self) -> Result<CpuStorage> {
         Ok(self.clone())
     }
+
+    fn repeat(&self, src_l: &Layout, shape: Shape) -> Result<Self> {
+        let repeats = shape.into();
+        let repeats = repeats.dims();
+        let mut inp = if self.rank() < repeats.len() {
+            let shape = [vec![1; repeats.len() - self.rank()], self.dims().to_vec()].concat();
+            self.reshape(shape)?
+        } else {
+            self.clone()
+        };
+        for (idx, &repeat) in repeats.iter().enumerate() {
+            if repeat > 1 {
+                inp = Tensor::cat(&vec![&inp; repeat], idx)?
+            }
+        }
+        Ok(inp)
+    }
 }
 
 impl BackendDevice for CpuDevice {

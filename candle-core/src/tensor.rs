@@ -8,6 +8,7 @@ use crate::scalar::TensorOrScalar;
 use crate::shape::{Dim, Dims};
 use crate::{bail, storage::Storage, DType, Device, Error, Layout, Result, Shape};
 use std::sync::{Arc, RwLock};
+use std::time::Instant;
 
 /// Unique identifier for tensors.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -553,20 +554,14 @@ impl Tensor {
     /// Repeat this tensor along the specified dimensions.
     pub fn repeat<S: Into<Shape>>(&self, shape: S) -> Result<Tensor> {
         // Similar to PyTorch, we extend the number of dimensions of self if needed.
-        let repeats = shape.into();
-        let repeats = repeats.dims();
-        let mut inp = if self.rank() < repeats.len() {
-            let shape = [vec![1; repeats.len() - self.rank()], self.dims().to_vec()].concat();
-            self.reshape(shape)?
-        } else {
-            self.clone()
-        };
-        for (idx, &repeat) in repeats.iter().enumerate() {
-            if repeat > 1 {
-                inp = Tensor::cat(&vec![&inp; repeat], idx)?
-            }
-        }
-        Ok(inp)
+        let shape = shape.into();
+
+        Ok(from_storage(
+            self.storage().repeat(&shape)?,
+            shape,
+            BackpropOp::none(),
+            false,
+        ))
     }
 
     /// Creates grids of coordinates specified by the 1D inputs.
@@ -2049,6 +2044,7 @@ impl Tensor {
     /// # Ok::<(), candle_core::Error>(())
     /// ```
     pub fn reshape<S: crate::shape::ShapeWithOneHole>(&self, s: S) -> Result<Tensor> {
+        let start = Instant::now();
         let shape = s.into_shape(self.elem_count())?;
         if shape.elem_count() != self.elem_count() {
             return Err(Error::ShapeMismatchBinaryOp {
@@ -2069,6 +2065,7 @@ impl Tensor {
                 dtype: self.dtype,
                 device: self.device.clone(),
             };
+            println!("Reshape took: {:?}", Instant::now().duration_since(start));
             Ok(Tensor(Arc::new(tensor_)))
         } else {
             let mut storage = self.device().zeros(&shape, self.dtype())?;

@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
+use tokio::time::Instant;
 
 #[derive(Debug)]
 struct Block {
@@ -243,10 +244,12 @@ fn detect(
         .iter()
         .flat_map(|&(x, y)| vec![x as f32 / stride as f32, y as f32 / stride as f32].into_iter())
         .collect();
+    let start = Instant::now();
     let anchors = Tensor::new(anchors.as_slice(), device)?
         .reshape((anchors.len() / 2, 2))?
         .repeat((grid_size * grid_size, 1))?
         .unsqueeze(0)?;
+    println!("Detect took: {:?}", Instant::now().duration_since(start));
     let ys02 = xs.i((.., .., 0..2))?;
     let ys24 = xs.i((.., .., 2..4))?;
     let ys4 = xs.i((.., .., 4..))?;
@@ -287,7 +290,8 @@ impl Darknet {
         let func = candle_nn::func(move |xs| {
             let mut prev_ys: Vec<Tensor> = vec![];
             let mut detections: Vec<Tensor> = vec![];
-            for (_, b) in blocks.iter() {
+            for (i, (_, b)) in blocks.iter().enumerate() {
+                let start = Instant::now();
                 let ys = match b {
                     Bl::Layer(l) => {
                         let xs = prev_ys.last().unwrap_or(xs);
@@ -305,6 +309,10 @@ impl Darknet {
                     }
                 };
                 prev_ys.push(ys);
+                println!(
+                    "NN index: {i}, Took: {:?}",
+                    Instant::now().duration_since(start)
+                );
             }
             Tensor::cat(&detections, 1)
         });

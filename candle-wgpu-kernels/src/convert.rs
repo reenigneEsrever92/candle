@@ -50,9 +50,7 @@ mod test {
     #[test]
     fn test_convert_u8_to_f32() {
         let backend = WgpuBackend::new().unwrap();
-        let input_buffer = backend
-            .create_buffer_with_data(&[1u8, 1, 1, 1, 1, 1, 1, 1])
-            .unwrap();
+        let input_buffer = backend.create_buffer_with_data(&[1u8; 8]).unwrap();
         let output_buffer = backend.create_buffer(8 * 4).unwrap();
 
         backend

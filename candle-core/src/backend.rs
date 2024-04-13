@@ -1,5 +1,5 @@
 use crate::op::{BinaryOpT, CmpOp, ReduceOp, UnaryOpT};
-use crate::{CpuStorage, DType, Layout, Result, Shape};
+use crate::{CpuStorage, DType, Layout, Result, Shape, Tensor};
 
 pub trait BackendStorage: Sized {
     type Device: BackendDevice;
@@ -98,6 +98,8 @@ pub trait BackendStorage: Sized {
     ) -> Result<Self>;
 
     fn copy_strided_src(&self, _: &mut Self, _: usize, _: &Layout) -> Result<()>;
+
+    fn repeat(&self, _: Shape) -> Result<Self>;
 }
 
 pub trait BackendDevice: Sized + std::fmt::Debug + Clone {

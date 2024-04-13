@@ -3,7 +3,8 @@ use wgpu::core::storage;
 use crate::backend::BackendStorage;
 use crate::op::{self, CmpOp, CustomOp1, CustomOp2, CustomOp3, ReduceOp};
 use crate::{
-    CpuStorage, CudaStorage, DType, Device, Error, Layout, MetalStorage, Result, Shape, WgpuStorage,
+    bail, CpuStorage, CudaStorage, DType, Device, Error, Layout, MetalStorage, Result, Shape,
+    WgpuStorage,
 };
 
 // We do not want to implement Clone on Storage as cloning may fail because of
@@ -771,6 +772,15 @@ impl Storage {
                 op: "copy",
             }
             .bt()),
+        }
+    }
+
+    pub(crate) fn repeat(&self, shape: &Shape) -> Result<Self> {
+        match self {
+            Storage::Cpu(storage) => storage.copy_strided_src(),
+            Storage::Cuda(_) => {}
+            Storage::Metal(_) => {}
+            Storage::Wgpu(_) => {}
         }
     }
 }
