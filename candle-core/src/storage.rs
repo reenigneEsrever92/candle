@@ -775,12 +775,12 @@ impl Storage {
         }
     }
 
-    pub(crate) fn repeat(&self, shape: &Shape) -> Result<Self> {
+    pub(crate) fn repeat(&self, layout: &Layout, shape: &Shape) -> Result<Self> {
         match self {
-            Storage::Cpu(storage) => storage.copy_strided_src(),
-            Storage::Cuda(_) => {}
-            Storage::Metal(_) => {}
-            Storage::Wgpu(_) => {}
+            Storage::Cpu(storage) => Ok(Self::Cpu(storage.repeat(layout, shape)?)),
+            Storage::Cuda(_) => todo!(),
+            Storage::Metal(_) => todo!(),
+            Storage::Wgpu(_) => todo!(),
         }
     }
 }

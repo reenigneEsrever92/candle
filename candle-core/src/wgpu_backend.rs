@@ -7,7 +7,7 @@ use crate::{
     backend::{BackendDevice, BackendStorage},
     dtype,
     layout::Layout,
-    CpuStorage, DType, Error, Result,
+    CpuStorage, DType, Error, Result, Shape,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -506,6 +506,10 @@ impl BackendStorage for WgpuStorage {
             .map_err(|e| WgpuError::WgpuBackendError(e))?;
 
         Ok(())
+    }
+
+    fn repeat(&self, layout: &Layout, shape: &Shape) -> Result<Self> {
+        todo!()
     }
 }
 

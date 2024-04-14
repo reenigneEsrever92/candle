@@ -2662,21 +2662,74 @@ impl BackendStorage for CpuStorage {
         Ok(self.clone())
     }
 
-    fn repeat(&self, src_l: &Layout, shape: Shape) -> Result<Self> {
-        let repeats = shape.into();
-        let repeats = repeats.dims();
-        let mut inp = if self.rank() < repeats.len() {
-            let shape = [vec![1; repeats.len() - self.rank()], self.dims().to_vec()].concat();
-            self.reshape(shape)?
-        } else {
-            self.clone()
-        };
-        for (idx, &repeat) in repeats.iter().enumerate() {
-            if repeat > 1 {
-                inp = Tensor::cat(&vec![&inp; repeat], idx)?
+    fn repeat(&self, layout: &Layout, shape: &Shape) -> Result<Self> {
+        let repeats: &[usize] = shape.dims().into();
+
+        match self {
+            CpuStorage::U8(inp) => {
+                let mut inp = inp.clone();
+                for repeat in repeats.iter() {
+                    if *repeat > 1usize {
+                        inp = vec![inp; *repeat].concat();
+                    }
+                }
+                Ok(Self::U8(inp.to_vec()))
+            }
+            CpuStorage::U32(inp) => {
+                let mut inp = inp.clone();
+                for repeat in repeats.iter() {
+                    if *repeat > 1usize {
+                        inp = vec![inp; *repeat].concat();
+                    }
+                }
+                Ok(Self::U32(inp.to_vec()))
+            }
+            CpuStorage::I64(inp) => {
+                let mut inp = inp.clone();
+                for repeat in repeats.iter() {
+                    if *repeat > 1usize {
+                        inp = vec![inp; *repeat].concat();
+                    }
+                }
+                Ok(Self::I64(inp.to_vec()))
+            }
+            CpuStorage::BF16(inp) => {
+                let mut inp = inp.clone();
+                for repeat in repeats.iter() {
+                    if *repeat > 1usize {
+                        inp = vec![inp; *repeat].concat();
+                    }
+                }
+                Ok(Self::BF16(inp.to_vec()))
+            }
+            CpuStorage::F16(inp) => {
+                let mut inp = inp.clone();
+                for repeat in repeats.iter() {
+                    if *repeat > 1usize {
+                        inp = vec![inp; *repeat].concat();
+                    }
+                }
+                Ok(Self::F16(inp.to_vec()))
+            }
+            CpuStorage::F32(inp) => {
+                let mut inp = inp.clone();
+                for repeat in repeats.iter() {
+                    if *repeat > 1usize {
+                        inp = vec![inp; *repeat].concat();
+                    }
+                }
+                Ok(Self::F32(inp.to_vec()))
+            }
+            CpuStorage::F64(inp) => {
+                let mut inp = inp.clone();
+                for repeat in repeats.iter() {
+                    if *repeat > 1usize {
+                        inp = vec![inp; *repeat].concat();
+                    }
+                }
+                Ok(Self::F64(inp))
             }
         }
-        Ok(inp)
     }
 }
 

@@ -110,6 +110,7 @@ extern crate intel_mkl_src;
 
 #[cfg(feature = "accelerate")]
 extern crate accelerate_src;
+extern crate core;
 
 pub trait ToUsize2 {
     fn to_usize2(self) -> (usize, usize);

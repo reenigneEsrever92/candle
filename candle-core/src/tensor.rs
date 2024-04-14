@@ -7,6 +7,7 @@ use crate::op::{
 use crate::scalar::TensorOrScalar;
 use crate::shape::{Dim, Dims};
 use crate::{bail, storage::Storage, DType, Device, Error, Layout, Result, Shape};
+use safetensors::View;
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
 
@@ -552,13 +553,32 @@ impl Tensor {
     }
 
     /// Repeat this tensor along the specified dimensions.
+    ///
+    /// ```rust
+    /// use candle_core::{Device, Shape, Tensor};
+    ///
+    /// let t1 = Tensor::from_slice(&[1f32, 2.0, 3.0], Shape::from_dims(&[3]), &Device::Cpu).unwrap();
+    /// let t2 = t1.repeat(Shape::from_dims(&[4, 2])).unwrap();
+    ///
+    /// assert_eq!(&Shape::from_dims(&[6, 4]), t2.shape());
+    /// assert_eq!(
+    ///     t2.reshape(Shape::from_dims(&[6 * 4])).unwrap().to_vec1::<f32>().unwrap(),
+    ///     [[1f32, 2.0, 3.0]; 8].concat()
+    /// );
+    /// ```
+    ///
     pub fn repeat<S: Into<Shape>>(&self, shape: S) -> Result<Tensor> {
         // Similar to PyTorch, we extend the number of dimensions of self if needed.
         let shape = shape.into();
+        let new_shape = if self.rank() < shape.rank() {
+            Shape::from_dims(&[vec![1; shape.rank() - self.rank()], self.dims().to_vec()].concat())
+        } else {
+            self.shape().clone()
+        };
 
         Ok(from_storage(
-            self.storage().repeat(&shape)?,
-            shape,
+            self.storage().repeat(&self.layout, &shape)?,
+            new_shape,
             BackpropOp::none(),
             false,
         ))
@@ -2044,7 +2064,6 @@ impl Tensor {
     /// # Ok::<(), candle_core::Error>(())
     /// ```
     pub fn reshape<S: crate::shape::ShapeWithOneHole>(&self, s: S) -> Result<Tensor> {
-        let start = Instant::now();
         let shape = s.into_shape(self.elem_count())?;
         if shape.elem_count() != self.elem_count() {
             return Err(Error::ShapeMismatchBinaryOp {
@@ -2065,7 +2084,6 @@ impl Tensor {
                 dtype: self.dtype,
                 device: self.device.clone(),
             };
-            println!("Reshape took: {:?}", Instant::now().duration_since(start));
             Ok(Tensor(Arc::new(tensor_)))
         } else {
             let mut storage = self.device().zeros(&shape, self.dtype())?;

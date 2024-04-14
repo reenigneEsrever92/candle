@@ -99,7 +99,7 @@ pub trait BackendStorage: Sized {
 
     fn copy_strided_src(&self, _: &mut Self, _: usize, _: &Layout) -> Result<()>;
 
-    fn repeat(&self, _: Shape) -> Result<Self>;
+    fn repeat(&self, layout: &Layout, shape: &Shape) -> Result<Self>;
 }
 
 pub trait BackendDevice: Sized + std::fmt::Debug + Clone {

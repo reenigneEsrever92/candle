@@ -172,15 +172,19 @@ impl crate::backend::BackendStorage for WgpuStorage {
     }
 
     fn max_pool2d(&self, _: &Layout, _: (usize, usize), _: (usize, usize)) -> Result<Self> {
-        Err(Error::NotCompiledWithMetalSupport)
+        Err(Error::NotCompiledWithWgpuSupport)
     }
 
     fn upsample_nearest1d(&self, _: &Layout, _: usize) -> Result<Self> {
-        Err(Error::NotCompiledWithMetalSupport)
+        Err(Error::NotCompiledWithWgpuSupport)
     }
 
     fn upsample_nearest2d(&self, _: &Layout, _: usize, _: usize) -> Result<Self> {
-        Err(Error::NotCompiledWithMetalSupport)
+        Err(Error::NotCompiledWithWgpuSupport)
+    }
+
+    fn repeat(&self, layout: &Layout, shape: &Shape) -> Result<Self> {
+        todo!()
     }
 }
 

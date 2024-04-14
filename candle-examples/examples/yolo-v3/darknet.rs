@@ -291,7 +291,6 @@ impl Darknet {
             let mut prev_ys: Vec<Tensor> = vec![];
             let mut detections: Vec<Tensor> = vec![];
             for (i, (_, b)) in blocks.iter().enumerate() {
-                let start = Instant::now();
                 let ys = match b {
                     Bl::Layer(l) => {
                         let xs = prev_ys.last().unwrap_or(xs);
@@ -309,10 +308,6 @@ impl Darknet {
                     }
                 };
                 prev_ys.push(ys);
-                println!(
-                    "NN index: {i}, Took: {:?}",
-                    Instant::now().duration_since(start)
-                );
             }
             Tensor::cat(&detections, 1)
         });
