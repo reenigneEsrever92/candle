@@ -1,5 +1,3 @@
-use std::ops::Deref;
-
 use anyhow::Result;
 use candle_core::{test_device, test_utils, Device, IndexOp, Tensor};
 

@@ -573,7 +573,15 @@ impl Tensor {
         let new_shape = if self.rank() < shape.rank() {
             Shape::from_dims(&[vec![1; shape.rank() - self.rank()], self.dims().to_vec()].concat())
         } else {
-            self.shape().clone()
+            Shape::from_dims(
+                &self
+                    .shape()
+                    .dims()
+                    .iter()
+                    .zip(shape.dims().iter())
+                    .map(|(d1, d2)| d1 * d2)
+                    .collect::<Vec<usize>>(),
+            )
         };
 
         Ok(from_storage(
