@@ -1935,6 +1935,49 @@ impl CpuStorage {
         };
         Ok(s)
     }
+
+    fn do_repeat<T: Clone + Copy>(
+        &self,
+        inp: &[T],
+        mut buffer: Vec<T>,
+        layout: &Layout,
+        shape: &Shape,
+    ) -> Result<Vec<T>> {
+        for (dim, repeat) in shape
+            .dims()
+            .iter()
+            .rev()
+            .take(layout.dims().len())
+            .enumerate()
+        {
+            for (dim_in, length) in layout.shape().dims().iter().enumerate() {
+                for cp in 0..*length {
+                    let dest_offset = cp * *length * repeat;
+                    let dest_size = *length * repeat;
+                    let inp_offset = cp * *length;
+                    let copy = vec![&inp[inp_offset..inp_offset + *length]; *repeat].concat();
+
+                    buffer[dest_offset..dest_offset + dest_size].copy_from_slice(&copy);
+                }
+            }
+        }
+
+        for (dim, repeat) in shape.dims().iter().skip(layout.dims().len()).enumerate() {
+            // replicate in buffer
+            let input_size = layout.shape().dims().iter().product::<usize>();
+            let length = shape
+                .dims()
+                .iter()
+                .take(dim)
+                .fold(input_size, |acc, size| acc * size);
+
+            let copy = vec![&buffer[0..length]; *repeat - 1].concat();
+
+            buffer[length..length * repeat].copy_from_slice(&copy);
+        }
+
+        Ok(buffer)
+    }
 }
 
 impl BackendStorage for CpuStorage {
@@ -2662,73 +2705,52 @@ impl BackendStorage for CpuStorage {
         Ok(self.clone())
     }
 
-    fn repeat(&self, layout: &Layout, shape: &Shape) -> Result<Self> {
-        let repeats: &[usize] = shape.dims().into();
+    fn repeat(&self, layout: &Layout, shape: &Shape, new_shape: &Shape) -> Result<Self> {
+        let output_size = new_shape.dims().iter().product::<usize>();
 
         match self {
-            CpuStorage::U8(inp) => {
-                let mut inp = inp.clone();
-                for repeat in repeats.iter() {
-                    if *repeat > 1usize {
-                        inp = vec![inp; *repeat].concat();
-                    }
-                }
-                Ok(Self::U8(inp.to_vec()))
-            }
-            CpuStorage::U32(inp) => {
-                let mut inp = inp.clone();
-                for repeat in repeats.iter() {
-                    if *repeat > 1usize {
-                        inp = vec![inp; *repeat].concat();
-                    }
-                }
-                Ok(Self::U32(inp.to_vec()))
-            }
-            CpuStorage::I64(inp) => {
-                let mut inp = inp.clone();
-                for repeat in repeats.iter() {
-                    if *repeat > 1usize {
-                        inp = vec![inp; *repeat].concat();
-                    }
-                }
-                Ok(Self::I64(inp.to_vec()))
-            }
-            CpuStorage::BF16(inp) => {
-                let mut inp = inp.clone();
-                for repeat in repeats.iter() {
-                    if *repeat > 1usize {
-                        inp = vec![inp; *repeat].concat();
-                    }
-                }
-                Ok(Self::BF16(inp.to_vec()))
-            }
-            CpuStorage::F16(inp) => {
-                let mut inp = inp.clone();
-                for repeat in repeats.iter() {
-                    if *repeat > 1usize {
-                        inp = vec![inp; *repeat].concat();
-                    }
-                }
-                Ok(Self::F16(inp.to_vec()))
-            }
-            CpuStorage::F32(inp) => {
-                let mut inp = inp.clone();
-                for repeat in repeats.iter() {
-                    if *repeat > 1usize {
-                        inp = vec![inp; *repeat].concat();
-                    }
-                }
-                Ok(Self::F32(inp.to_vec()))
-            }
-            CpuStorage::F64(inp) => {
-                let mut inp = inp.clone();
-                for repeat in repeats.iter() {
-                    if *repeat > 1usize {
-                        inp = vec![inp; *repeat].concat();
-                    }
-                }
-                Ok(Self::F64(inp))
-            }
+            CpuStorage::U8(inp) => Ok(Self::U8(self.do_repeat(
+                inp,
+                vec![0u8; output_size],
+                layout,
+                shape,
+            )?)),
+            CpuStorage::U32(inp) => Ok(Self::U32(self.do_repeat(
+                inp,
+                vec![0u32; output_size],
+                layout,
+                shape,
+            )?)),
+            CpuStorage::I64(inp) => Ok(Self::I64(self.do_repeat(
+                inp,
+                vec![0i64; output_size],
+                layout,
+                shape,
+            )?)),
+            CpuStorage::BF16(inp) => Ok(Self::BF16(self.do_repeat(
+                inp,
+                vec![bf16::from(0u8); output_size],
+                layout,
+                shape,
+            )?)),
+            CpuStorage::F16(inp) => Ok(Self::F16(self.do_repeat(
+                inp,
+                vec![f16::from(0u8); output_size],
+                layout,
+                shape,
+            )?)),
+            CpuStorage::F32(inp) => Ok(Self::F32(self.do_repeat(
+                inp,
+                vec![0f32; output_size],
+                layout,
+                shape,
+            )?)),
+            CpuStorage::F64(inp) => Ok(Self::F64(self.do_repeat(
+                inp,
+                vec![0f64; output_size],
+                layout,
+                shape,
+            )?)),
         }
     }
 }

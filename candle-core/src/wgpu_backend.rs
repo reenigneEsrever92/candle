@@ -508,7 +508,7 @@ impl BackendStorage for WgpuStorage {
         Ok(())
     }
 
-    fn repeat(&self, layout: &Layout, shape: &Shape) -> Result<Self> {
+    fn repeat(&self, layout: &Layout, shape: &Shape, new_shape: &Shape) -> Result<Self> {
         todo!()
     }
 }

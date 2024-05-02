@@ -182,7 +182,7 @@ impl crate::backend::BackendStorage for MetalStorage {
         Err(Error::NotCompiledWithMetalSupport)
     }
 
-    fn repeat(&self, layout: &Layout, shape: &Shape) -> Result<Self> {
+    fn repeat(&self, layout: &Layout, shape: &Shape, new_shape: &Shape) -> Result<Self> {
         todo!()
     }
 }

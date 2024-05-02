@@ -170,7 +170,7 @@ impl crate::backend::BackendStorage for CudaStorage {
         Err(Error::NotCompiledWithCudaSupport)
     }
 
-    fn repeat(&self, layout: &Layout, shape: &Shape) -> Result<Self> {
+    fn repeat(&self, layout: &Layout, shape: &Shape, new_shape: &Shape) -> Result<Self> {
         todo!()
     }
 }

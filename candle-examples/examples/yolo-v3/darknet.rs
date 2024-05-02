@@ -235,8 +235,9 @@ fn detect(
     let b = a.t()?.contiguous()?;
     let x_offset = a.flatten_all()?.unsqueeze(1)?;
     let y_offset = b.flatten_all()?.unsqueeze(1)?;
-    let xy_offset = Tensor::cat(&[&x_offset, &y_offset], 1)?
-        .repeat((1, nanchors))?
+    let cat = Tensor::cat(&[&x_offset, &y_offset], 1)?;
+    let repeated = cat.repeat_old((1, nanchors))?;
+    let xy_offset = repeated
         .reshape((grid_size * grid_size * nanchors, 2))?
         .unsqueeze(0)?
         .to_dtype(DType::F32)?;
@@ -247,7 +248,7 @@ fn detect(
     let start = Instant::now();
     let anchors = Tensor::new(anchors.as_slice(), device)?
         .reshape((anchors.len() / 2, 2))?
-        .repeat((grid_size * grid_size, 1))?
+        .repeat_old((grid_size * grid_size, 1))?
         .unsqueeze(0)?;
     println!("Detect took: {:?}", Instant::now().duration_since(start));
     let ys02 = xs.i((.., .., 0..2))?;
@@ -290,7 +291,7 @@ impl Darknet {
         let func = candle_nn::func(move |xs| {
             let mut prev_ys: Vec<Tensor> = vec![];
             let mut detections: Vec<Tensor> = vec![];
-            for (i, (_, b)) in blocks.iter().enumerate() {
+            for (_, (_, b)) in blocks.iter().enumerate() {
                 let ys = match b {
                     Bl::Layer(l) => {
                         let xs = prev_ys.last().unwrap_or(xs);

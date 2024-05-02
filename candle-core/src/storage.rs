@@ -1,6 +1,6 @@
 use wgpu::core::storage;
 
-use crate::backend::BackendStorage;
+use crate::backend::{BackendDevice, BackendStorage};
 use crate::op::{self, CmpOp, CustomOp1, CustomOp2, CustomOp3, ReduceOp};
 use crate::{
     bail, CpuStorage, CudaStorage, DType, Device, Error, Layout, MetalStorage, Result, Shape,
@@ -775,12 +775,23 @@ impl Storage {
         }
     }
 
-    pub(crate) fn repeat(&self, layout: &Layout, shape: &Shape) -> Result<Self> {
+    pub(crate) fn repeat(&self, layout: &Layout, shape: &Shape, new_shape: &Shape) -> Result<Self> {
         match self {
-            Storage::Cpu(storage) => Ok(Self::Cpu(storage.repeat(layout, shape)?)),
+            Storage::Cpu(storage) => Ok(Self::Cpu(storage.repeat(layout, shape, new_shape)?)),
             Storage::Cuda(_) => todo!(),
             Storage::Metal(_) => todo!(),
-            Storage::Wgpu(_) => todo!(),
+            Storage::Wgpu(storage) => Ok(Self::Wgpu(
+                storage
+                    .device()
+                    .storage_from_cpu_storage(
+                        &storage
+                            .to_cpu_storage()
+                            .unwrap()
+                            .repeat(layout, shape, new_shape)
+                            .unwrap(),
+                    )
+                    .unwrap(),
+            )),
         }
     }
 }

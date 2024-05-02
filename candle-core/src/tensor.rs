@@ -558,38 +558,73 @@ impl Tensor {
     /// use candle_core::{Device, Shape, Tensor};
     ///
     /// let t1 = Tensor::from_slice(&[1f32, 2.0, 3.0], Shape::from_dims(&[3]), &Device::Cpu).unwrap();
-    /// let t2 = t1.repeat(Shape::from_dims(&[4, 2])).unwrap();
+    /// let t2 = t1.repeat_old(Shape::from_dims(&[4, 2])).unwrap();
     ///
-    /// assert_eq!(&Shape::from_dims(&[6, 4]), t2.shape());
+    /// assert_eq!(&Shape::from_dims(&[4, 6]), t2.shape());
     /// assert_eq!(
     ///     t2.reshape(Shape::from_dims(&[6 * 4])).unwrap().to_vec1::<f32>().unwrap(),
-    ///     [[1f32, 2.0, 3.0]; 8].concat()
+    ///     [[1f32, 2.0, 3.0]; 2 * 4].concat()
     /// );
+    /// assert_eq!(t2.stride(), &[1usize, 4]);
+    /// ```
+    ///
+    pub fn repeat_old<S: Into<Shape>>(&self, shape: S) -> Result<Self> {
+        // Similar to PyTorch, we extend the number of dimensions of self if needed.
+        let repeats = shape.into();
+        let repeats = repeats.dims();
+        let mut inp = if self.rank() < repeats.len() {
+            let shape = [vec![1; repeats.len() - self.rank()], self.dims().to_vec()].concat();
+            self.reshape(shape)?
+        } else {
+            self.clone()
+        };
+        for (idx, &repeat) in repeats.iter().enumerate() {
+            if repeat > 1 {
+                inp = Tensor::cat(&vec![&inp; repeat], idx)?
+            }
+        }
+        Ok(inp)
+    }
+
+    /// Repeat this tensor along the specified dimensions.
+    ///
+    /// ```rust
+    /// use candle_core::{Device, Shape, Tensor};
+    ///
+    /// let t1 = Tensor::from_slice(&[1f32, 2.0, 3.0], Shape::from_dims(&[3]), &Device::Cpu).unwrap();
+    /// let t2 = t1.repeat_old(Shape::from_dims(&[4, 2])).unwrap();
+    ///
+    /// assert_eq!(&Shape::from_dims(&[4, 6]), t2.shape());
+    /// assert_eq!(
+    ///     t2.reshape(Shape::from_dims(&[6 * 4])).unwrap().to_vec1::<f32>().unwrap(),
+    ///     [[1f32, 2.0, 3.0]; 2 * 4].concat()
+    /// );
+    /// assert_eq!(t2.stride(), &[1usize, 4]);
     /// ```
     ///
     pub fn repeat<S: Into<Shape>>(&self, shape: S) -> Result<Tensor> {
         // Similar to PyTorch, we extend the number of dimensions of self if needed.
         let shape = shape.into();
-        let new_shape = if self.rank() < shape.rank() {
-            Shape::from_dims(&[vec![1; shape.rank() - self.rank()], self.dims().to_vec()].concat())
+
+        if shape.rank() < self.rank() {
+            bail!("Rank of repeat dimensions cannot be smaller than rank of tensor.\nTensor shape: {:?}, Repeat shape: {:?}", self.shape(), shape)
         } else {
-            Shape::from_dims(
-                &self
-                    .shape()
-                    .dims()
-                    .iter()
+            let new_shape = Shape::from_dims(
+                &std::iter::repeat(&1)
+                    .take(shape.rank() - self.rank())
+                    .chain(self.shape().dims().iter())
                     .zip(shape.dims().iter())
                     .map(|(d1, d2)| d1 * d2)
                     .collect::<Vec<usize>>(),
-            )
-        };
+            );
 
-        Ok(from_storage(
-            self.storage().repeat(&self.layout, &shape)?,
-            new_shape,
-            BackpropOp::none(),
-            false,
-        ))
+            Ok(from_storage(
+                self.storage().repeat(&self.layout, &shape, &new_shape)?,
+                new_shape,
+                BackpropOp::none(),
+                false,
+            ))
+        }
     }
 
     /// Creates grids of coordinates specified by the 1D inputs.
