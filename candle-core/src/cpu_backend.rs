@@ -3,6 +3,7 @@ use crate::op::{BinaryOpT, CmpOp, ReduceOp, UnaryOpT};
 use crate::{DType, Error, IntDType, Layout, Result, Shape, WithDType};
 use half::{bf16, f16};
 use rayon::prelude::*;
+use std::mem::take;
 
 const USE_IM2COL_CONV1D: bool = true;
 const USE_IM2COL_CONV2D: bool = true;
@@ -1943,37 +1944,97 @@ impl CpuStorage {
         layout: &Layout,
         shape: &Shape,
     ) -> Result<Vec<T>> {
-        // copy to buffer
-        for ((dim_in, size), prev_dim) in layout
-            .shape()
+        let inp_sizes = layout
             .dims()
             .iter()
             .enumerate()
-            .rev()
-            .zip(layout.dims().iter().rev().skip(1))
-        {
-            let offset = shape.dims().iter().take(dim_in).product::<usize>() * dim_in + 1;
-            for cp in 0..*prev_dim {
-                let dest_offset = cp * offset;
-                let inp_offset = cp * *size;
-                let copy = &inp[inp_offset..inp_offset + *size];
+            .map(|(index, _)| {
+                layout
+                    .dims()
+                    .iter()
+                    .rev()
+                    .take(index + 1)
+                    .fold(1usize, |acc, buffer_size| acc * buffer_size)
+            })
+            .collect::<Vec<usize>>();
 
-                buffer[dest_offset..dest_offset + size].copy_from_slice(&copy);
+        let dest_sizes = shape
+            .dims()
+            .iter()
+            .enumerate()
+            .map(|(index, _)| {
+                shape
+                    .dims()
+                    .iter()
+                    .rev()
+                    .zip(
+                        layout
+                            .shape()
+                            .dims()
+                            .iter()
+                            .rev()
+                            .chain(std::iter::repeat(&1usize)),
+                    )
+                    .take(index + 1)
+                    .map(|(repeat, buffer_size)| repeat * buffer_size)
+                    .fold(1usize, |acc, length| acc * length)
+            })
+            .collect::<Vec<usize>>();
+
+        let copy_info = layout
+            .shape()
+            .dims()
+            .iter()
+            .rev()
+            .skip(1)
+            .zip(layout.shape().dims().iter().rev())
+            .zip(inp_sizes.iter())
+            .zip(dest_sizes.iter())
+            .map(|(((no_buffers, buffer_size), inp_size), dest_size)| {
+                (*no_buffers, *buffer_size, *inp_size, *dest_size)
+            })
+            .collect::<Vec<_>>();
+
+        // copy to buffer
+        for (no_buffers, buffer_size, input_size, dest_size) in copy_info.clone() {
+            println!(
+                "no_buffers: {no_buffers}, buffer_size: {buffer_size}, input_size: {input_size}, dest_size: {dest_size}"
+            );
+            for i in 0..no_buffers {
+                let dest_offset = dest_size * i;
+                let inp_offset = input_size * i;
+                let copy = &inp[inp_offset..inp_offset + buffer_size];
+                buffer[dest_offset..dest_offset + buffer_size].copy_from_slice(&copy);
             }
         }
 
+        let replicate_info = shape
+            .dims()
+            .iter()
+            .rev()
+            .zip(
+                layout
+                    .shape()
+                    .dims()
+                    .iter()
+                    .rev()
+                    .skip(1)
+                    .chain(std::iter::repeat(&1usize)),
+            )
+            .zip(inp_sizes.iter())
+            .zip(dest_sizes.iter())
+            .map(|(((repeats, no_buffers), inp_size), dest_size)| {
+                (*repeats, *no_buffers, *inp_size, *dest_size)
+            })
+            .collect::<Vec<_>>();
+
         // replicate in buffer
-        for (dim, repeat) in shape.dims().iter().rev().enumerate() {
-            let input_size = layout.shape().dims().iter().product::<usize>();
-            let length = shape
-                .dims()
-                .iter()
-                .take(dim)
-                .fold(input_size, |acc, size| acc * size);
-
-            let copy = vec![&buffer[0..length]; *repeat - 1].concat();
-
-            buffer[length..length * repeat].copy_from_slice(&copy);
+        for (repeat, no_buffers, inp_size, dest_size) in replicate_info {
+            for i in 0..no_buffers {
+                let dest_offset = dest_size * i;
+                let copy = vec![&buffer[dest_offset..dest_offset + inp_size]; repeat].concat();
+                buffer[dest_offset..dest_offset + dest_size].copy_from_slice(&copy);
+            }
         }
 
         Ok(buffer)
