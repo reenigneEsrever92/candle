@@ -1943,27 +1943,27 @@ impl CpuStorage {
         layout: &Layout,
         shape: &Shape,
     ) -> Result<Vec<T>> {
-        for (dim, repeat) in shape
+        // copy to buffer
+        for ((dim_in, size), prev_dim) in layout
+            .shape()
             .dims()
             .iter()
-            .rev()
-            .take(layout.dims().len())
             .enumerate()
+            .rev()
+            .zip(layout.dims().iter().rev().skip(1))
         {
-            for (dim_in, length) in layout.shape().dims().iter().enumerate() {
-                for cp in 0..*length {
-                    let dest_offset = cp * *length * repeat;
-                    let dest_size = *length * repeat;
-                    let inp_offset = cp * *length;
-                    let copy = vec![&inp[inp_offset..inp_offset + *length]; *repeat].concat();
+            let offset = shape.dims().iter().take(dim_in).product::<usize>() * dim_in + 1;
+            for cp in 0..*prev_dim {
+                let dest_offset = cp * offset;
+                let inp_offset = cp * *size;
+                let copy = &inp[inp_offset..inp_offset + *size];
 
-                    buffer[dest_offset..dest_offset + dest_size].copy_from_slice(&copy);
-                }
+                buffer[dest_offset..dest_offset + size].copy_from_slice(&copy);
             }
         }
 
-        for (dim, repeat) in shape.dims().iter().skip(layout.dims().len()).enumerate() {
-            // replicate in buffer
+        // replicate in buffer
+        for (dim, repeat) in shape.dims().iter().rev().enumerate() {
             let input_size = layout.shape().dims().iter().product::<usize>();
             let length = shape
                 .dims()
