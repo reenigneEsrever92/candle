@@ -231,12 +231,15 @@ fn detect(
         .contiguous()?
         .reshape((bsize, grid_size * grid_size * nanchors, bbox_attrs))?;
     let grid = Tensor::arange(0u32, grid_size as u32, device)?;
-    let a = grid.repeat_old((grid_size, 1))?;
+    let a = grid.repeat((grid_size, 1))?;
     let b = a.t()?.contiguous()?;
     let x_offset = a.flatten_all()?.unsqueeze(1)?;
     let y_offset = b.flatten_all()?.unsqueeze(1)?;
     let cat = Tensor::cat(&[&x_offset, &y_offset], 1)?;
-    let repeated = cat.repeat((1, nanchors))?;
+    // let repeated = cat.repeat_old((1, nanchors))?;
+    let repeated = cat
+        // .reshape(cat.shape())?
+        .repeat((1, nanchors))?;
     let xy_offset = repeated
         .reshape((grid_size * grid_size * nanchors, 2))?
         .unsqueeze(0)?
@@ -248,7 +251,7 @@ fn detect(
     let start = Instant::now();
     let anchors = Tensor::new(anchors.as_slice(), device)?
         .reshape((anchors.len() / 2, 2))?
-        .repeat_old((grid_size * grid_size, 1))?
+        .repeat((grid_size * grid_size, 1))?
         .unsqueeze(0)?;
     println!("Detect took: {:?}", Instant::now().duration_since(start));
     let ys02 = xs.i((.., .., 0..2))?;

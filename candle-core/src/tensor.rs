@@ -618,12 +618,15 @@ impl Tensor {
                     .collect::<Vec<usize>>(),
             );
 
-            Ok(from_storage(
-                self.storage().repeat(&self.layout, &shape, &new_shape)?,
-                new_shape,
-                BackpropOp::none(),
-                false,
-            ))
+            let t = if self.is_contiguous() {
+                self.storage().repeat(&self.layout, &shape, &new_shape)?
+            } else {
+                self.reshape(self.shape())?
+                    .storage()
+                    .repeat(&self.layout, &shape, &new_shape)?
+            };
+
+            Ok(from_storage(t, new_shape, BackpropOp::none(), false))
         }
     }
 
