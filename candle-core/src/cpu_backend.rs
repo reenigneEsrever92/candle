@@ -1986,20 +1986,25 @@ impl CpuStorage {
             .dims()
             .iter()
             .rev()
-            .skip(1)
-            .zip(layout.shape().dims().iter().rev())
+            .zip(
+                layout
+                    .shape()
+                    .dims()
+                    .iter()
+                    .rev()
+                    .skip(1)
+                    .chain(std::iter::repeat(&1)),
+            )
             .zip(inp_sizes.iter())
             .zip(dest_sizes.iter())
-            .map(|(((no_buffers, buffer_size), inp_size), dest_size)| {
+            .take(1)
+            .map(|(((buffer_size, no_buffers), inp_size), dest_size)| {
                 (*no_buffers, *buffer_size, *inp_size, *dest_size)
             })
             .collect::<Vec<_>>();
 
         // copy to buffer
         for (no_buffers, buffer_size, input_size, dest_size) in copy_info.clone() {
-            println!(
-                "no_buffers: {no_buffers}, buffer_size: {buffer_size}, input_size: {input_size}, dest_size: {dest_size}"
-            );
             for i in 0..no_buffers {
                 let dest_offset = dest_size * i;
                 let inp_offset = input_size * i;
@@ -2021,18 +2026,16 @@ impl CpuStorage {
                     .skip(1)
                     .chain(std::iter::repeat(&1usize)),
             )
-            .zip(inp_sizes.iter())
             .zip(dest_sizes.iter())
-            .map(|(((repeats, no_buffers), inp_size), dest_size)| {
-                (*repeats, *no_buffers, *inp_size, *dest_size)
-            })
+            .map(|((repeats, no_buffers), dest_size)| (*repeats, *no_buffers, *dest_size))
             .collect::<Vec<_>>();
 
         // replicate in buffer
-        for (repeat, no_buffers, inp_size, dest_size) in replicate_info {
+        for (repeat, no_buffers, dest_size) in replicate_info {
             for i in 0..no_buffers {
                 let dest_offset = dest_size * i;
-                let copy = vec![&buffer[dest_offset..dest_offset + inp_size]; repeat].concat();
+                let copy =
+                    vec![&buffer[dest_offset..dest_offset + dest_size / repeat]; repeat].concat();
                 buffer[dest_offset..dest_offset + dest_size].copy_from_slice(&copy);
             }
         }
