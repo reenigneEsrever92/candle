@@ -780,18 +780,7 @@ impl Storage {
             Storage::Cpu(storage) => Ok(Self::Cpu(storage.repeat(layout, shape, new_shape)?)),
             Storage::Cuda(_) => todo!(),
             Storage::Metal(_) => todo!(),
-            Storage::Wgpu(storage) => Ok(Self::Wgpu(
-                storage
-                    .device()
-                    .storage_from_cpu_storage(
-                        &storage
-                            .to_cpu_storage()
-                            .unwrap()
-                            .repeat(layout, shape, new_shape)
-                            .unwrap(),
-                    )
-                    .unwrap(),
-            )),
+            Storage::Wgpu(storage) => Ok(Self::Wgpu(storage.repeat(layout, shape, new_shape)?)),
         }
     }
 }

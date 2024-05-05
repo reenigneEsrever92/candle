@@ -148,8 +148,8 @@ pub fn main() -> Result<()> {
     let args = Args::parse();
 
     // Create the model and load the weights from the file.
-    // let device = Device::new_wgpu(1).unwrap();
-    let device = Device::Cpu;
+    let device = Device::new_wgpu(1).unwrap();
+    // let device = Device::Cpu;
     let model = args.model()?;
     let vb = unsafe { VarBuilder::from_mmaped_safetensors(&[model], DType::F32, &device)? };
     let config = args.config()?;
