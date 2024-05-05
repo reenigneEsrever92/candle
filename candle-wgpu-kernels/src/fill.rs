@@ -1,5 +1,5 @@
 use bytemuck::{Pod, Zeroable};
-use wgpu::{util::DeviceExt, Buffer, Id};
+use wgpu::{Buffer, Id};
 
 use crate::kernel::Shader;
 use crate::{WgpuBackend, WgpuBackendResult};

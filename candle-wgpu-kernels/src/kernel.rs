@@ -6,6 +6,7 @@ const FILL_SHADER_U8: &str = include_str!("fill_u8.wgsl");
 const FILL_SHADER_U32: &str = include_str!("fill_u32.wgsl");
 const RANDOM_SHADER: &str = include_str!("random.wgsl");
 const COPY_SHADER: &str = include_str!("copy.wgsl");
+const COPY_SPARSE_SHADER: &str = include_str!("copy_sparse.wgsl");
 const CONVERT_U8_TO_F32: &str = include_str!("convert_u8_to_f32.wgsl");
 const CONVERT_U32_TO_F32: &str = include_str!("convert_u32_to_f32.wgsl");
 const AFFINE: &str = include_str!("affine.wgsl");
@@ -21,6 +22,7 @@ pub struct Kernels {
     pub(crate) fill_u32: ShaderModule,
     pub(crate) random: ShaderModule,
     pub(crate) copy: ShaderModule,
+    pub(crate) copy_sparse: ShaderModule,
     pub(crate) convert_u8_to_f32: ShaderModule,
     pub(crate) convert_u32_to_f32: ShaderModule,
     pub(crate) affine: ShaderModule,
@@ -37,6 +39,7 @@ pub enum Shader {
     FillU32,
     Random,
     Copy,
+    CopySparse,
     ConvertU8ToF32,
     ConvertU32ToF32,
     Affine,
@@ -71,6 +74,10 @@ impl Kernels {
             copy: device.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: None,
                 source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(COPY_SHADER)),
+            }),
+            copy_sparse: device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: None,
+                source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(COPY_SPARSE_SHADER)),
             }),
             convert_u8_to_f32: device.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: None,

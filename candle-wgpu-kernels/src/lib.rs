@@ -1,14 +1,11 @@
 use bytemuck::Pod;
 use core::slice;
 use kernel::{Kernels, Shader};
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use wgpu::core::id::BufferId;
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
     BindGroupDescriptor, Buffer, BufferDescriptor, BufferUsages, CommandEncoderDescriptor,
-    DeviceDescriptor, DeviceType, Id, Limits, MaintainResult, PipelineLayoutDescriptor,
-    ShaderModule,
+    DeviceDescriptor, Id, Limits, MaintainResult, PipelineLayoutDescriptor, ShaderModule,
 };
 
 mod affine;
@@ -16,9 +13,11 @@ mod binary_op;
 pub mod conv;
 mod convert;
 mod copy;
+mod copy_sparse;
 pub mod fill;
 mod kernel;
 mod random;
+mod repeat;
 mod unary_op;
 mod upsample_nearest;
 
@@ -575,6 +574,7 @@ impl WgpuBackend {
             Shader::FillU8 => &self.kernels.fill_u8,
             Shader::FillU32 => &self.kernels.fill_u32,
             Shader::Copy => &self.kernels.copy,
+            Shader::CopySparse => &self.kernels.copy_sparse,
             Shader::ConvertU8ToF32 => &self.kernels.convert_u8_to_f32,
             Shader::ConvertU32ToF32 => &self.kernels.convert_u32_to_f32,
             Shader::Affine => &self.kernels.affine,
@@ -604,7 +604,7 @@ pub mod tests {
     #[test]
     fn test_create_buffer() {
         let data: [f32; 1024] = [1.0; 1024];
-        let mut backend = WgpuBackend::new().unwrap();
+        let backend = WgpuBackend::new().unwrap();
         backend.create_buffer_with_data(&data).unwrap();
     }
 }

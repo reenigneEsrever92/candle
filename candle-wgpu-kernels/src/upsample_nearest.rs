@@ -1,7 +1,6 @@
 use crate::kernel::Shader;
 use crate::{WgpuBackend, WgpuBackendResult};
 use bytemuck::{Pod, Zeroable};
-use wgpu::core::id::BufferId;
 use wgpu::{Buffer, Id};
 
 #[repr(C)]
