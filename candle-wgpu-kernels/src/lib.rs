@@ -580,7 +580,8 @@ impl WgpuBackend {
             Shader::Affine => &self.kernels.affine,
             Shader::BinaryOp => &self.kernels.binary_op,
             Shader::UnaryOp => &self.kernels.unary_op,
-            Shader::UpsampleNearest => &self.kernels.uspample_nearest,
+            Shader::UpsampleNearest => &self.kernels.upsample_nearest,
+            Shader::Repeat => &self.kernels.repeat,
         }
     }
 

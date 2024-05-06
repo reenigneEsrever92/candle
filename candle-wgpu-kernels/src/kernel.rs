@@ -13,6 +13,7 @@ const AFFINE: &str = include_str!("affine.wgsl");
 const BINARY_OP: &str = include_str!("binary_op.wgsl");
 const UNARY_OP: &str = include_str!("unary_op.wgsl");
 const UPSAMPLE_NEAREST: &str = include_str!("upsample_nearest.wgsl");
+const REPEAT: &str = include_str!("repeat.wgsl");
 
 #[derive(Debug)]
 pub struct Kernels {
@@ -28,7 +29,8 @@ pub struct Kernels {
     pub(crate) affine: ShaderModule,
     pub(crate) binary_op: ShaderModule,
     pub(crate) unary_op: ShaderModule,
-    pub(crate) uspample_nearest: ShaderModule,
+    pub(crate) upsample_nearest: ShaderModule,
+    pub(crate) repeat: ShaderModule,
 }
 
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
@@ -46,6 +48,7 @@ pub enum Shader {
     BinaryOp,
     UnaryOp,
     UpsampleNearest,
+    Repeat,
 }
 
 impl Kernels {
@@ -99,9 +102,13 @@ impl Kernels {
                 label: None,
                 source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(UNARY_OP)),
             }),
-            uspample_nearest: device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            upsample_nearest: device.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: None,
                 source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(UPSAMPLE_NEAREST)),
+            }),
+            repeat: device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: None,
+                source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(REPEAT)),
             }),
         }
     }
